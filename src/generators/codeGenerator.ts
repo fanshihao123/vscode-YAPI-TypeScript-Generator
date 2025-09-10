@@ -116,54 +116,45 @@ export class CodeGenerator {
 
   /**
    * 生成 API 函数名称
-   * 规则：按照接口路径命名保证唯一，去掉HTTP方法前缀，直接使用路径生成驼峰命名
-   * 例如：GET /api/shop/V3/shopPopList -> getV3ShopPopList
+   * 规则：按照接口路径命名保证唯一，使用 _id 字段，只保留最后1个路径段，直接使用路径生成驼峰命名
+   * 例如：GET /api/shop/V3/shopPopList -> getShopPopList${id}
    */
   private generateAPIName(apiInterface: YAPIInterface): string {
     const path = apiInterface.path;
+    const id = apiInterface._id || '';
+    // 拆分路径，去除空字符串
+    let paths = path.split('/').filter(Boolean);
 
-    let paths = path.split('/');
-    if(paths.length > 2) {
-      paths = paths.slice(paths.length - 2);
+    // 只保留最后1个路径段（如有），否则全部
+    if (paths.length > 1) {
+      paths = paths.slice(paths.length - 1);
     }
-    
-    // 将路径转换为驼峰命名
+
+    // 处理路径段，全部转为驼峰（首字母大写，特殊字符去除）
     const pathParts = paths
-      .filter(part => part.length > 0) // 移除空字符串
       .map(part => {
-        // 处理版本号（如V3, v1等）
-        if (/^v\d+$/i.test(part)) {
-          return part.toUpperCase();
-        }
-        // 处理其他部分，转换为驼峰命名
         return part
           .replace(/[^a-zA-Z0-9]/g, '') // 移除特殊字符
           .replace(/^[0-9]/, '') // 移除开头的数字
-          .replace(/^./, str => str.toLowerCase()) // 首字母小写
           .replace(/-([a-z])/g, (_, letter) => letter.toUpperCase()) // 处理连字符
-          .replace(/_([a-z])/g, (_, letter) => letter.toUpperCase()); // 处理下划线
+          .replace(/_([a-z])/g, (_, letter) => letter.toUpperCase()) // 处理下划线
+          .replace(/^./, str => str.toUpperCase()); // 首字母大写
       })
-      .filter(part => part.length > 0); // 再次过滤空字符串
-    
-    // 组合方法名
+      .filter(part => part.length > 0);
+
+    // 方法前缀
     let methodName = this.config.methodNamePrefix[apiInterface.method.toUpperCase()].toLocaleLowerCase() || 'get';
-    
-    // 添加路径部分，第一个部分首字母小写，后续部分首字母大写
-    for (let i = 0; i < pathParts.length; i++) {
-      const part = pathParts[i];
-       methodName += part.charAt(0).toUpperCase() + part.slice(1);
-      // if (part.length > 0) {
-      //   if (i === 0) {
-      //     // 第一个部分保持小写
-      //     methodName += part;
-      //   } else {
-      //     // 后续部分首字母大写
-      //     methodName += part.charAt(0).toUpperCase() + part.slice(1);
-      //   }
-      // }
+
+    // 拼接路径段
+    let name = methodName;
+    for (const part of pathParts) {
+      name += part;
     }
-    
-    return methodName;
+
+    // 拼接唯一id
+    name += id ? `${id}` : '';
+
+    return name;
   }
 
   /**

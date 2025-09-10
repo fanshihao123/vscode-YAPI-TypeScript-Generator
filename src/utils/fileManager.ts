@@ -140,11 +140,40 @@ export class FileManager {
         const wsFolder = vscode.workspace.getWorkspaceFolder(uri);
         const baseDir = wsFolder?.uri.fsPath || this.workspaceRoot || path.dirname(absPath);
         const config = await prettier.resolveConfig(absPath, { editorconfig: true }).catch(() => undefined);
+        // 尝试加载可选的 Prettier 插件以增强对 import 的组织能力
+        const tryResolvePlugin = async (reqPath: string) => {
+          try {
+            const _require = eval('require');
+            const mod = _require(reqPath);
+            if (mod && typeof mod.then === 'function') {
+              const awaited = await mod;
+              return awaited?.default || awaited;
+            }
+            return mod?.default || mod;
+          } catch {
+            return null;
+          }
+        };
+        const pluginCandidates = [
+          path.resolve(baseDir, 'node_modules', 'prettier-plugin-organize-imports'),
+          path.resolve(baseDir, 'node_modules', '@trivago/prettier-plugin-sort-imports'),
+          'prettier-plugin-organize-imports',
+          '@trivago/prettier-plugin-sort-imports'
+        ];
+        const resolvedPlugins: any[] = [];
+        for (const cand of pluginCandidates) {
+          const p = await tryResolvePlugin(cand);
+          if (p) {
+            resolvedPlugins.push(p);
+          }
+        }
         formatted = await prettier.format(content, {
           ...(config || {}),
           filepath: absPath,
           // @ts-ignore - Prettier v3 选项
-          pluginSearchDirs: [baseDir]
+          pluginSearchDirs: [baseDir],
+          // 如果能解析到插件，则显式传入，确保在 Node API 下也能生效
+          ...(resolvedPlugins.length > 0 ? { plugins: resolvedPlugins } : {})
         });
         usedPrettier = true;
       }
@@ -152,10 +181,33 @@ export class FileManager {
       usedPrettier = false;
     }
 
-    await fs.promises.writeFile(absPath, formatted, 'utf8');
+    await this.atomicWriteFile(absPath, formatted);
 
     if (!usedPrettier) {
       await this.formatFile(absPath);
+    }
+  }
+
+  /**
+   * 原子写入：先写入临时文件，再 rename 覆盖目标，避免并发或崩溃导致的部分内容丢失
+   */
+  async atomicWriteFile(absPath: string, content: string): Promise<void> {
+    const dir = path.dirname(absPath);
+    const base = path.basename(absPath);
+    const tmp = path.resolve(dir, `.${base}.${Date.now()}.tmp`);
+    try {
+      await fs.promises.writeFile(tmp, content, 'utf8');
+      await fs.promises.rename(tmp, absPath);
+    } catch (err) {
+      try {
+        // 回退到直接写入
+        await fs.promises.writeFile(absPath, content, 'utf8');
+      } catch (e) {
+        throw err;
+      } finally {
+        // 清理临时文件
+        try { await fs.promises.unlink(tmp); } catch {}
+      }
     }
   }
 
@@ -185,10 +237,14 @@ export class FileManager {
       if (baseDir) {
         const localPath = path.resolve(baseDir, 'node_modules', 'prettier');
         const local = await tryResolve(localPath);
-        if (local) return local;
+        if (local) {
+          return local;
+        }
       }
       const global = await tryResolve('prettier');
-      if (global) return global;
+      if (global) {
+        return global;
+      }
       // 最后尝试动态 import（ESM 环境）
       try {
         // @ts-ignore
@@ -214,11 +270,28 @@ export class FileManager {
         uri,
         { insertSpaces: true, tabSize: 2 }
       );
+      let didApply = false;
       if (edits && edits.length > 0) {
         const workspaceEdit = new vscode.WorkspaceEdit();
         workspaceEdit.set(uri, edits);
         await vscode.workspace.applyEdit(workspaceEdit);
-        await document.save();
+        didApply = true;
+        const ok = await document.save();
+        if (!ok) {
+          // 可能出现“文件内容较新”冲突：执行一次回退并重试保存
+          await vscode.commands.executeCommand('workbench.action.files.revert');
+          await vscode.workspace.applyEdit(workspaceEdit);
+          await document.save();
+        }
+      } else {
+        // 即使没有格式化 edits，也确保保存到磁盘，避免出现未保存状态
+        if (document.isDirty) {
+          const ok = await document.save();
+          if (!ok) {
+            await vscode.commands.executeCommand('workbench.action.files.revert');
+            await document.save();
+          }
+        }
       }
     } catch (err) {
       console.warn('格式化失败:', err);
@@ -231,7 +304,8 @@ export class FileManager {
   async openFile(filePath: string): Promise<void> {
     const uri = vscode.Uri.file(filePath);
     const document = await vscode.workspace.openTextDocument(uri);
-    await vscode.window.showTextDocument(document);
+    // 使用非预览模式打开，避免“预览”标签导致的未保存/易被替换问题
+    await vscode.window.showTextDocument(document, { preview: false });
   }
 
   /**

@@ -1,10 +1,11 @@
 {
   "name": "ytt",
-  "displayName": "YAPI TypeScript Generator",
+  "publisher": "fanda",
+  "displayName": "yolo - YAPI TypeScript Generator",
   "description": "基于 YAPI 自动生成 TypeScript 接口请求工具",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "engines": {
-    "vscode": "^1.54.0"
+    "vscode": "^1.50.0"
   },
   "categories": [
     "Other",
@@ -16,7 +17,10 @@
     "typescript",
     "api",
     "generator",
-    "interface"
+    "interface",
+    "yolo",
+    "yolo-yapi",
+    "fanda"
   ],
   "activationEvents": [
     "onCommand:ytt.startTerminal"
@@ -26,8 +30,8 @@
     "commands": [
       {
         "command": "ytt.startTerminal",
-        "title": "启动 YAPI 终端工具",
-        "category": "YAPI Generator"
+        "title": "ytt",
+        "category": "YAPI TypeScript Generator"
       }
     ],
     "configuration": {

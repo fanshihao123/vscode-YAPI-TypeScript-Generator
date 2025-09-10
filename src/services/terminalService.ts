@@ -464,7 +464,7 @@ export class TerminalService {
       // 为每个菜单创建独立的文件
       const createdFiles: string[] = [];
       const updatedFiles: string[] = [];
-
+      
       for (const menuFile of menuFiles) {
         try {
           // 创建菜单专用的目录
@@ -536,6 +536,9 @@ export class TerminalService {
       }
       // 生成或更新主索引文件
       const mainIndexPath = await this.updateMainIndexFile(config.outputPath, menuFiles);
+
+      // 确保所有缓冲区写盘（处理极端情况下的未保存/预览误判）
+      await vscode.workspace.saveAll(true);
       
       // this.log('✅ 所有代码处理完成!');
       interfaceList[0]?.forEach((menu, index) => {
@@ -553,27 +556,27 @@ export class TerminalService {
       // this.log(`   📄 主索引文件: ${fileManager.getRelativePath(mainIndexPath)}`);
 
       // 询问是否打开生成的文件
-      const result = await vscode.window.showInformationMessage(
-        `成功处理 ${interfaceList.length} 个菜单的 TypeScript 文件!`,
-        '打开主索引文件',
-        '打开所有新文件',
-        '在文件资源管理器中显示'
-      );
+      // const result = await vscode.window.showInformationMessage(
+      //   `成功处理 ${interfaceList.length} 个菜单的 TypeScript 文件!`,
+      //   '打开主索引文件',
+      //   '打开所有新文件',
+      //   '在文件资源管理器中显示'
+      // );
 
       // 根据用户选择执行操作
-      switch (result) {
-        case '打开主索引文件':
-          await fileManager.openFile(mainIndexPath);
-          break;
-        case '打开所有新文件':
-          for (const filePath of [...createdFiles, mainIndexPath]) {
-            await fileManager.openFile(filePath);
-          }
-          break;
-        case '在文件资源管理器中显示':
-          await vscode.commands.executeCommand('revealInExplorer', mainIndexPath);
-          break;
-      }
+      // switch (result) {
+      //   case '打开主索引文件':
+      //     await fileManager.openFile(mainIndexPath);
+      //     break;
+      //   case '打开所有新文件':
+      //     for (const filePath of [...createdFiles, mainIndexPath]) {
+      //       await fileManager.openFile(filePath);
+      //     }
+      //     break;
+      //   case '在文件资源管理器中显示':
+      //     await vscode.commands.executeCommand('revealInExplorer', mainIndexPath);
+      //     break;
+      // }
 
     } catch (error) {
       this.log(`❌ 代码生成失败: ${error instanceof Error ? error.message : '未知错误'}`);
@@ -713,48 +716,296 @@ export class TerminalService {
     const fileManager = new FileManager();
     
     const mainIndexPath = `${outputPath}/index.ts`;
-    const fullPath = path.resolve(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '', mainIndexPath);
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
+    const fullPath = path.resolve(workspaceRoot, mainIndexPath);
 
-    // 读取已存在内容（若无则初始化头部）
-    let existingContent = '';
+    // 增量更新主索引文件：
+    // - 读取既有内容，若存在则仅替换“生成时间”行；
+    // - 对每个新菜单，若缺少对应的 export 语句则追加；
+    // - 保留历史内容不覆盖，确保可重复执行且幂等。
+    const headerTitle = '// 自动生成的 YAPI TypeScript 接口主索引文件';
+    const nowLine = `// 生成时间: ${new Date().toLocaleString()}`;
+    const timeRegex = /^\/\/\s*生成时间:.*$/m;
+    let content = '';
     try {
-      existingContent = await fs.promises.readFile(fullPath, 'utf8');
-    } catch {
-      existingContent = `// 自动生成的 YAPI TypeScript 接口主索引文件\n// 生成时间: ${new Date().toLocaleString()}\n// 请不要手动修改此文件，每次生成都会覆盖！！！\n\n`;
-    }
-
-
-    for (const menuFile of menuFiles) {
-      const block = `\n// ${menuFile.menuName} 模块\nexport * from './${menuFile.fileName}/interfaces';\nexport * from './${menuFile.fileName}/apis';\nexport * from './${menuFile.fileName}/index';\n\n`;
-      const signature = `export * from './${menuFile.fileName}/interfaces';`;
-      if (!existingContent.includes(signature)) {
-        // 确保文件以换行结束再追加
-        if (!existingContent.endsWith('\n')) {
-          existingContent += '\n';
-        }
-        existingContent += block;
-      }
-    }
-
-
-    // 每次更新都更新头部“生成时间”行
-      const nowLine = `// 生成时间: ${new Date().toLocaleString()}`;
-      const timeRegex = /^\/\/\s*生成时间:.*$/m;
-      if (timeRegex.test(existingContent)) {
-        existingContent = existingContent.replace(timeRegex, nowLine);
+      content = await fs.promises.readFile(fullPath, 'utf8');
+      // 更新时间
+      if (timeRegex.test(content)) {
+        content = content.replace(timeRegex, nowLine);
+      } else if (content.startsWith(headerTitle)) {
+        content = content.replace(headerTitle, `${headerTitle}\n${nowLine}`);
       } else {
-        const headerTitle = '// 自动生成的 YAPI TypeScript 接口主索引文件';
-        if (existingContent.startsWith(headerTitle)) {
-          // 在标题行后插入时间行
-          existingContent = existingContent.replace(headerTitle, `${headerTitle}\n${nowLine}`);
+        content = `${headerTitle}\n${nowLine}\n// 请不要手动修改此文件，每次生成都会覆盖！！！\n\n${content}`;
+      }
+    } catch {
+      content = `${headerTitle}\n${nowLine}\n// 请不要手动修改此文件，每次生成都会覆盖！！！\n\n`;
+    }
+
+    // 为每个菜单进行“缺失即追加”的导出语句拼接
+    // 这段代码的作用是：遍历所有 menuFiles（每个 menuFile 代表一个菜单模块），
+    // 检查主索引文件内容 content 是否已经包含了该菜单的导出语句（export * from ...）。
+    // 如果没有，则为该菜单追加一段注释和导出语句，确保每个菜单的 index.ts 都被主索引文件导出。
+    // 这样可以实现增量追加，避免重复导出，保证主索引文件始终包含所有菜单模块的导出。
+
+    // 例如，假设 menuFiles 有两个菜单：
+    // menuFiles = [
+    //   { menuName: '用户管理', fileName: 'user', ... },
+    //   { menuName: '订单管理', fileName: 'order', ... }
+    // ]
+    // 那么最终 content 会追加如下内容（如果之前没有）：
+    // // 用户管理 模块
+    // export * from './user/index';
+    // // 订单管理 模块
+    // export * from './order/index';
+    for (const menuFile of menuFiles) {
+      const block = `// ${menuFile.menuName} 模块\nexport * from './${menuFile.fileName}/index';\n`;
+      const signature = `export * from './${menuFile.fileName}/index';`;
+      if (!content.includes(signature)) {
+        content += `${block}`;
+      }
+    }
+
+    // 写入主索引并格式化；若遇到“文件内容较新”冲突，formatFile 内部会自动回退并重试
+    await fileManager.atomicWriteFile(fullPath, content);
+    await fileManager.formatFile(fullPath);
+
+    // 生成全局类型声明：使用 declare namespace API，仅映射 interfaces.ts 的类型
+    const globalDtsPath = path.resolve(workspaceRoot, `${outputPath}/global.d.ts`);
+    // 增量更新全局类型声明：
+    // - 仅生成类型声明（无运行时对象）；
+    // - 汇总每个菜单的 interfaces.ts 到 API.<PascalName> 命名空间；
+    // - 读取旧内容，补齐/替换“生成时间”；增量追加缺失的 import 与命名空间映射。
+    const globalHeaderTitle = '// 自动生成的全局类型声明文件';
+    const globalNowLine = `// 生成时间: ${new Date().toLocaleString()}`;
+    let globalDts = '';
+
+    // 将菜单名称转换为 PascalCase：
+    // - 中文逐字转拼音，英文/数字按分隔符切词；
+    // - 统一转小写后再首字母大写拼接；
+    // - 若无法提取，退回使用文件名。
+    const toPascalNamespace = (menuName: string, fallback: string) => {
+      const tokens: string[] = [];
+      let asciiBuf = '';
+      const flushAscii = () => {
+        if (!asciiBuf) {
+          return;
+        }
+        asciiBuf
+          .split(/[^a-zA-Z0-9]+/)
+          .filter(Boolean)
+          .forEach(t => tokens.push(t.toLowerCase()));
+        asciiBuf = '';
+      };
+      const chars = Array.from(menuName || '');
+      for (const ch of chars) {
+        if (/^[\u4e00-\u9fa5]$/.test(ch)) {
+          flushAscii();
+          try {
+            const pyArr: any = pinyin(ch, { style: 'NORMAL' });
+            const py = (Array.isArray(pyArr) && Array.isArray(pyArr[0]) && pyArr[0][0]) ? String(pyArr[0][0]) : '';
+            if (py) {
+              tokens.push(py.toLowerCase());
+            }
+          } catch {
+            // ignore
+          }
         } else {
-          // 没有标准头部，直接在文件顶部追加时间行
-          existingContent = `${nowLine}\n${existingContent}`;
+          asciiBuf += ch;
         }
       }
+      flushAscii();
+      if (tokens.length === 0) {
+        const parts = (fallback || 'menu')
+          .replace(/[^a-zA-Z0-9]+/g, ' ')
+          .split(' ')
+          .filter(Boolean)
+          .map(p => p.toLowerCase());
+        tokens.push(...parts);
+      }
+      return tokens.map(t => t.charAt(0).toUpperCase() + t.slice(1)).join('');
+    };
 
-    await fs.promises.writeFile(fullPath, existingContent, 'utf8');
-    await fileManager.formatFile(fullPath);
+    // 读取或初始化 global.d.ts，并仅替换“生成时间”行，不覆盖其余内容
+    try {
+      // 这行代码的作用是异步读取 globalDtsPath 路径下的 global.d.ts 文件内容，并将其以字符串形式赋值给 globalDts 变量。
+      // 这样可以在后续对 global.d.ts 文件内容进行分析、替换或增量更新。
+      // 例如：假设 globalDtsPath = '/project/types/global.d.ts'，文件内容为
+      //   // 全局类型声明
+      //   // 生成时间: 2024-06-01 12:00:00
+      //   declare global {
+      //     namespace API {}
+      //   }
+      //   export {};
+      // 读取后 globalDts 就是上述字符串内容，可以在后续代码中查找、替换“生成时间”或追加类型声明等。
+      globalDts = await fs.promises.readFile(globalDtsPath, 'utf8');
+      // 更新时间
+      if (timeRegex.test(globalDts)) {
+        globalDts = globalDts.replace(timeRegex, globalNowLine);
+      } else if (globalDts.startsWith(globalHeaderTitle)) {
+        globalDts = globalDts.replace(globalHeaderTitle, `${globalHeaderTitle}\n${globalNowLine}`);
+      } else {
+        globalDts = `${globalHeaderTitle}\n${globalNowLine}\n\n${globalDts}`;
+      }
+    } catch {
+      // 初始化骨架结构
+      const importSection = '';
+      const nsSection = `declare global {\n  namespace API {\n  }\n}\nexport {};\n`;
+      globalDts = `${globalHeaderTitle}\n${globalNowLine}\n\n${importSection}${nsSection}`;
+    }
+
+    // 切分导入区与声明区，以便在保持原内容的前提下增量插入
+    const declGlobalIdx = globalDts.indexOf('declare global {');
+    const beforeDecl = declGlobalIdx >= 0 ? globalDts.slice(0, declGlobalIdx) : globalDts;
+    const afterDecl = declGlobalIdx >= 0 ? globalDts.slice(declGlobalIdx) : '';
+    let importAccum = beforeDecl;
+    let nsAccum = afterDecl;
+
+    // 逐菜单增量追加：
+    // - 顶部 import type * as __API__<fileName> from './<fileName>/interfaces'
+    // - 在 namespace API { } 内追加：export import <PascalName> = __API__<fileName>
+    // - 若已存在相同别名但不同命名，则进行替换，保持唯一映射
+    // 辅助：安全转义别名用于正则
+    const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    for (const m of menuFiles) {
+      const importAlias = `__API__${m.fileName}`;
+      const importLine = `import type * as ${importAlias} from './${m.fileName}/interfaces';`;
+      const nsName = toPascalNamespace(m.menuName, m.fileName);
+      const nsLine = `    export import ${nsName} = ${importAlias};`;
+
+      // 拆分为头部注释和 importLine 两部分，头部注释与 importLine 之间留一个空行，importLine 与 importLine 之间紧挨没有空行
+      // 先查找头部注释（以 // 或 /* 开头的行），其余为 import 区
+      const lines = importAccum.split('\n');
+      let commentLines: string[] = [];
+      let importLines: string[] = [];
+      let foundNonComment = false;
+      for (const line of lines) {
+        if (!foundNonComment && (line.trim().startsWith('//') || line.trim().startsWith('/*') || line.trim() === '')) {
+          commentLines.push(line);
+        } else if (line.trim() !== '') {
+          foundNonComment = true;
+          importLines.push(line);
+        }
+      }
+      // 检查是否已存在该 importLine
+      if (!importLines.includes(importLine)) {
+        importLines.push(importLine);
+      }
+      // 重新拼接，注释区与 import 区之间留一个空行，importLine 之间无空行
+      importAccum = commentLines.join('\n').replace(/\n*$/, '') + (commentLines.length > 0 ? '\n\n' : '') + importLines.join('\n');
+
+
+      // 稳定修改 namespace API：
+      // 1) 若已存在同一 alias 的映射，则替换整行；
+      // 2) 否则在 API 命名空间体内末尾追加一行；
+      // 3) 如缺少骨架则补齐骨架后再追加。
+      const apiNsRegex = /namespace\s+API\s*\{([\s\S]*?)\}/m;
+      const aliasLineRegex = new RegExp(`^\n?\s*export\s+import\s+[A-Za-z0-9_]+\s*=\s*${escapeRegExp(importAlias)};\s*$`, 'm');
+
+      const match = nsAccum.match(apiNsRegex);
+      if (match) {
+        let body = match[1];
+        // 这段代码的作用是确保在 namespace API 的大括号内，针对每个 API 菜单文件，正确插入或替换 export import 语句，保证每个 API 命名空间别名唯一且规范。
+        // 举例说明：
+        // 假设 body 当前内容为：
+        //   export import User = __API__User;
+        //   export import Order = __API__Order;
+        // 如果本次循环 importAlias 为 __API__Order，nsName 为 Order，
+        // 则 aliasLineRegex 会匹配到 "export import Order = __API__Order;" 这一行，
+        // 于是 body 会将该行替换为 nsLine（标准格式），避免多余空格或缩进错乱。
+        // 如果 body 里没有 export import Xxx = __API__Yyy; 这一行（即 aliasLineRegex 未匹配），
+        // 且也没有完全相同的 nsLine，则会在 body 末尾追加一行 nsLine，确保新 API 菜单被正确导入。
+        if (aliasLineRegex.test(body)) {
+          // 替换为标准行，避免多空格/错位
+          body = body.replace(new RegExp(`^\n?\s*export\s+import\s+[A-Za-z0-9_]+\s*=\s*${escapeRegExp(importAlias)};\s*$`, 'm'), nsLine);
+        } else if (!body.includes(nsLine)) {
+          if (!body.endsWith('\n')) {
+            body += '\n';
+          }
+          body += nsLine;
+        }
+
+        const cleanBody = body
+        .split('\n')
+        .filter(line => line.trim() !== '') // 去除所有空行
+        .join('\n');
+
+        // 这段代码的作用是：在已有的 nsAccum 字符串（代表 global.d.ts 文件中的内容）中，找到 namespace API { ... } 这段命名空间声明，并用最新的 body 内容（即包含所有 export import Xxx = __API__Yyy; 的行）替换原有的命名空间体内容。
+        // 举例说明：
+        // 假设 nsAccum 当前内容为：
+        //   declare global {
+        //     namespace API {
+        //       export import User = __API__User;
+        //     }
+        //   }
+        //   export {};
+        // 假设本次循环 body 变成了：
+        //   export import User = __API__User;
+        //   export import Order = __API__Order;
+        // 则替换后 nsAccum 变为：
+        //   declare global {
+        //     namespace API {
+        //       export import User = __API__User;
+        //       export import Order = __API__Order;
+        //     }
+        //   }
+        //   export {};
+        // 保证 namespace API { ... } 里的 export import Xxx = __API__Yyy; 之间没有空行
+        nsAccum = nsAccum.replace(apiNsRegex, `namespace API {\n${cleanBody}\n  }`);
+      } else {
+        // 如果缺少命名空间骨架，补齐
+        if (!nsAccum.endsWith('\n')) {
+          nsAccum += '\n';
+        }
+        nsAccum += `declare global {\n  namespace API {\n${nsLine}\n  }\n}\nexport {};\n`;
+      }
+    }
+
+    // 确保 import 区与 declare global 之间恰好一个空行
+    // 这段代码的作用是将 import type 导入语句和 TypeScript 全局声明（如 declare global/namespace API）拼接成最终的 global.d.ts 文件内容，并确保 import 区和 declare global 之间有且只有一个空行，格式规范。
+    // 具体逻辑如下：
+    // - 如果存在 import type 相关的导入（hasImports 为 true），则将 importAccum（所有 import 语句）去除末尾多余空白，nsAccum（命名空间声明）去除开头多余空行，然后用两个换行拼接，保证 import 区和 declare global 之间只有一个空行。
+    // - 如果没有 import type 导入，则直接拼接 importAccum 和 nsAccum。
+    //
+    // 举例说明：
+    // 假设 importAccum 为：
+    //   import type * as __API__User from './User/interfaces';
+    //   import type * as __API__Order from './Order/interfaces';
+    //
+    // nsAccum 为：
+    //   declare global {
+    //     namespace API {
+    //       export import User = __API__User;
+    //       export import Order = __API__Order;
+    //     }
+    //   }
+    //   export {};
+    //
+    // 处理后 globalDts 结果为：
+    //   import type * as __API__User from './User/interfaces';
+    //   import type * as __API__Order from './Order/interfaces';
+    //
+    //   declare global {
+    //     namespace API {
+    //       export import User = __API__User;
+    //       export import Order = __API__Order;
+    //     }
+    //   }
+    //   export {};
+    const hasImports = /\bimport\s+type\b/.test(importAccum);
+    if (hasImports) {
+      const importTrimmed = importAccum.replace(/\s*$/, '');
+      const nsTrimmed = nsAccum.replace(/^\n+/, '');
+      globalDts = importTrimmed + "\n\n" + nsTrimmed;
+    } else {
+      globalDts = importAccum + nsAccum;
+    }
+
+    // 规范 import 块：移除 import 之间的空行，但保留与 declare global 之间的一个空行
+    // globalDts = globalDts.replace(/(import type [^\n]+;\n)\n+(?=import type )/g, '$1');
+    // 写入 global.d.ts 并格式化；若遇到“文件内容较新”冲突，formatFile 内部会自动回退并重试
+    await fileManager.atomicWriteFile(globalDtsPath, globalDts);
+    await fileManager.formatFile(globalDtsPath);
+
     return fullPath;
   }
 
