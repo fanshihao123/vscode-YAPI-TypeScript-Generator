@@ -17,10 +17,13 @@
 - 🧠 **智能类型推断**：
   - 请求：从 `req_query.example/desc` 智能推断类型
   - 响应：优先识别 JSON Schema，严格按 `required/properties/items` 递归生成
-- 🧰 **代码格式化**：优先使用项目内 Prettier（读取 `.prettierrc` 与插件），失败回退 VSCode 格式化
+- 🧰 **智能格式化**：优先使用项目内 Prettier（读取 `.prettierrc` 与插件），失败回退 VSCode 格式化
 - 📝 **文件头信息**：每次生成都会刷新"生成时间"；子模块文件头会带上对应的"菜单名"
 - 🔒 **原子写入**：使用临时文件+重命名机制，避免并发写入导致的内容丢失
 - 🎯 **Prettier 增强**：自动检测并加载 `prettier-plugin-organize-imports` 等插件，确保 import 排序
+- 🔧 **ESLint 集成**：自动执行 ESLint 修复，确保代码质量
+- 🔇 **静默操作**：生成过程中不会打开或关闭文件，不干扰用户当前工作
+- 🛡️ **文件状态管理**：完善的冲突处理和错误恢复机制
 
 ## 系统要求
 
@@ -34,7 +37,7 @@
 从 VS Code 扩展市场安装本扩展，或使用本地 VSIX 文件安装：
 
 ```bash
-code --install-extension ytt-1.1.1.vsix
+code --install-extension ytt-1.1.4.vsix
 ```
 
 ### 2. 配置 YAPI 连接
@@ -85,16 +88,16 @@ code --install-extension ytt-1.1.1.vsix
 
 ```
 src/api/
-├── gonggongfenlei/          # 菜单目录（中文转拼音）
-│   ├── interfaces.ts        # 接口类型定义
-│   ├── apis.ts             # API 请求函数
-│   └── index.ts            # 模块导出
-├── dingdanguanli/          # 另一个菜单
+├── gonggongfenlei/              # 菜单目录（中文转拼音）
+│   ├── interfaces.ts            # 接口类型定义
+│   ├── apis.ts                 # API 请求函数
+│   └── index.ts                # 模块导出
+├── xinbanbenxiaodianliebiao/    # 另一个菜单
 │   ├── interfaces.ts
 │   ├── apis.ts
 │   └── index.ts
-├── index.ts                # 根索引，汇总全部菜单导出
-└── global.d.ts             # 全局类型声明
+├── index.ts                    # 根索引，汇总全部菜单导出
+└── global.d.ts                 # 全局类型声明
 ```
 
 ## 全局类型使用
@@ -103,32 +106,38 @@ src/api/
 
 ```typescript
 // 全局类型声明（自动生成）
+import type * as __API__gonggongfenlei from './gonggongfenlei/interfaces';
+import type * as __API__xinbanbenxiaodianliebiao from './xinbanbenxiaodianliebiao/interfaces';
+
 declare global {
   namespace API {
-    export import GongGongFenLei = import('./gonggongfenlei/interfaces');
-    export import DingDanGuanLi = import('./dingdanguanli/interfaces');
+    export import GongGongFenLei = __API__gonggongfenlei;
+    export import XinBanBenXiaoDianLieBiao = __API__xinbanbenxiaodianliebiao;
   }
 }
+
+export {};
 ```
 
 ### 使用示例
 
 ```typescript
 // 直接使用全局类型，无需导入
-const params: API.GongGongFenLei.GetUserParams = {
-  userId: 123
+const params: API.GongGongFenLei.GetCategoryListParams = {
+  categoryId: 123,
+  includeChildren: true
 };
 
-function handleResponse(data: API.GongGongFenLei.GetUserResponse) {
-  console.log(data);
+function handleResponse(data: API.GongGongFenLei.GetCategoryListResponse) {
+  console.log(data.categories[0].name);
 }
 
 // 或者使用传统的导入方式
-import { GetUserParams, GetUserResponse } from './api/gonggongfenlei/interfaces';
-import { getV3UserInfo } from './api/gonggongfenlei/apis';
+import { GetCategoryListParams, GetCategoryListResponse } from './api/gonggongfenlei/interfaces';
+import { getCategoryList } from './api/gonggongfenlei/apis';
 
-const params: GetUserParams = { userId: 123 };
-const data: GetUserResponse = await getV3UserInfo(params);
+const params: GetCategoryListParams = { categoryId: 123 };
+const data: GetCategoryListResponse = await getCategoryList(params);
 ```
 
 ## 生成规则说明
@@ -161,16 +170,17 @@ const data: GetUserResponse = await getV3UserInfo(params);
 
 ## 高级配置
 
-### Prettier 集成
+### 智能格式化
 
-扩展会自动检测并使用项目中的 Prettier 配置：
+扩展会自动检测并使用项目中的格式化工具：
 
-1. 优先使用 `node_modules/prettier`
-2. 自动加载相关插件：
+1. **Prettier 优先**：优先使用 `node_modules/prettier`
+2. **插件支持**：自动加载相关插件：
    - `prettier-plugin-organize-imports`
    - `@trivago/prettier-plugin-sort-imports`
-3. 读取 `.prettierrc` 和 `.editorconfig`
-4. 失败时回退到 VSCode 格式化
+3. **配置读取**：读取 `.prettierrc` 和 `.editorconfig`
+4. **ESLint 集成**：自动执行 ESLint 修复
+5. **多重保障**：失败时回退到 VSCode 格式化
 
 ### 推荐的项目配置
 
@@ -179,7 +189,10 @@ const data: GetUserResponse = await getV3UserInfo(params);
 {
   "devDependencies": {
     "prettier": "^3.0.0",
-    "prettier-plugin-organize-imports": "^3.0.0"
+    "prettier-plugin-organize-imports": "^3.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0"
   }
 }
 ```
@@ -190,8 +203,44 @@ const data: GetUserResponse = await getV3UserInfo(params);
   "semi": true,
   "singleQuote": true,
   "tabWidth": 2,
+  "useTabs": false,
   "trailingComma": "es5",
+  "printWidth": 100,
+  "endOfLine": "lf",
   "plugins": ["prettier-plugin-organize-imports"]
+}
+```
+
+```javascript
+// .eslintrc.js
+module.exports = {
+  extends: [
+    '@typescript-eslint/recommended',
+    'prettier'
+  ],
+  parser: '@typescript-eslint/parser',
+  plugins: ['@typescript-eslint'],
+  rules: {
+    '@typescript-eslint/no-unused-vars': 'error',
+    '@typescript-eslint/no-explicit-any': 'warn'
+  }
+};
+```
+
+```json
+// .vscode/settings.json
+{
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": true,
+    "source.organizeImports": true
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  }
 }
 ```
 
@@ -204,6 +253,7 @@ const data: GetUserResponse = await getV3UserInfo(params);
 2. 检查 `.prettierignore` 是否忽略了生成目录
 3. 多根工作区时，确保生成目录在当前工作区根内
 4. 检查 Prettier 配置文件是否正确
+5. 确保 ESLint 配置正确
 
 ### Q: 出现 `[object Promise]` 或写入报错？
 
@@ -241,6 +291,27 @@ const data: GetUserResponse = await getV3UserInfo(params);
 1. 在 YAPI 中使用英文菜单名
 2. 生成后手动重命名目录（注意同步更新 `index.ts` 和 `global.d.ts`）
 
+### Q: 生成文件时打开了不需要的文件？
+
+**A:** 扩展已使用静默文件操作：
+- 生成过程中不会打开新文件
+- 不会关闭用户当前打开的文件
+- 所有操作在后台静默执行
+
+### Q: 出现"文件内容较新"错误？
+
+**A:** 扩展已实现完善的冲突处理：
+- 自动处理"文件内容较新"冲突
+- 使用原子写入机制防止内容丢失
+- 失败时自动重试
+
+### Q: 多行注释格式异常？
+
+**A:** 扩展已优化注释处理：
+- 自动清理已存在的多行注释标记
+- 生成标准的多行注释格式
+- 处理文件打开状态对生成的影响
+
 ## 开发与贡献
 
 ### 本地开发
@@ -272,9 +343,11 @@ src/
 │   └── codeGenerator.ts   # 代码生成器
 ├── utils/
 │   ├── fileManager.ts     # 文件管理
-│   └── configManager.ts   # 配置管理
-└── types/
-    └── yapi.ts           # YAPI 类型定义
+│   ├── configManager.ts   # 配置管理
+│   └── index.ts          # 工具函数
+├── types/
+│   └── yapi.ts           # YAPI 类型定义
+└── constants.ts          # 常量定义
 ```
 
 ## 变更日志

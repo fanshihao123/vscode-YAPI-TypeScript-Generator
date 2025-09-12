@@ -680,8 +680,8 @@ export class TerminalService {
     newContent += `export const INTERFACE_NAMES = ${JSON.stringify(interfaces.map(i => i.name), null, 2)};\n\n`;
     newContent += `export default {\n  INTERFACE_COUNT,\n  INTERFACE_NAMES,\n  ${interfaces.map(i => `${i.name}: require('./${i.name}')`).join(',\n  ')}\n};\n`;
 
-    await fs.promises.writeFile(filePath, newContent, 'utf8');
-    await fileManager.formatFile(filePath);
+    // 使用新的格式化流程，包含冲突处理
+    await fileManager.formatAndWriteFile(filePath, newContent);
   }
 
   /**
@@ -699,8 +699,8 @@ export class TerminalService {
     newContent += `export const API_NAMES = ${JSON.stringify(apis.map(a => a.name), null, 2)};\n\n`;
     newContent += `export default {\n  API_COUNT,\n  API_NAMES,\n  ${apis.map(a => `${a.name}: require('./${a.name}')`).join(',\n  ')}\n};\n`;
 
-    await fs.promises.writeFile(filePath, newContent, 'utf8');
-    await fileManager.formatFile(filePath);
+    // 使用新的格式化流程，包含冲突处理
+    await fileManager.formatAndWriteFile(filePath, newContent);
   }
 
   /**
@@ -868,7 +868,7 @@ export class TerminalService {
     const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     for (const m of menuFiles) {
       const importAlias = `__API__${m.fileName}`;
-      const importLine = `import type * as ${importAlias} from './${m.fileName}/interfaces';`;
+      const importLine = `import * as ${importAlias} from './${m.fileName}/interfaces';`;
       const nsName = toPascalNamespace(m.menuName, m.fileName);
       const nsLine = `    export import ${nsName} = ${importAlias};`;
 
@@ -960,11 +960,12 @@ export class TerminalService {
       }
     }
 
-    // 确保 import 区与 declare global 之间恰好一个空行
-    // 这段代码的作用是将 import type 导入语句和 TypeScript 全局声明（如 declare global/namespace API）拼接成最终的 global.d.ts 文件内容，并确保 import 区和 declare global 之间有且只有一个空行，格式规范。
+    // 确保 import 区与 declare global 之间恰好一个空行，declare global 上下各有一个空行
+    // 这段代码的作用是将 import type 导入语句和 TypeScript 全局声明（如 declare global/namespace API）拼接成最终的 global.d.ts 文件内容，并确保格式规范。
     // 具体逻辑如下：
     // - 如果存在 import type 相关的导入（hasImports 为 true），则将 importAccum（所有 import 语句）去除末尾多余空白，nsAccum（命名空间声明）去除开头多余空行，然后用两个换行拼接，保证 import 区和 declare global 之间只有一个空行。
     // - 如果没有 import type 导入，则直接拼接 importAccum 和 nsAccum。
+    // - 确保 declare global 上下各有一个空行
     //
     // 举例说明：
     // 假设 importAccum 为：
@@ -990,6 +991,7 @@ export class TerminalService {
     //       export import Order = __API__Order;
     //     }
     //   }
+    //
     //   export {};
     const hasImports = /\bimport\s+type\b/.test(importAccum);
     if (hasImports) {
@@ -999,14 +1001,125 @@ export class TerminalService {
     } else {
       globalDts = importAccum + nsAccum;
     }
+    
+    // 确保 declare global 上下各有一个空行
+    // 先确保 declare global 前面有一个空行（处理 import 与 declare global 之间）
+    globalDts = globalDts.replace(/(import[^;]*;)(\n*)(declare global \{)/g, '$1\n\n$3');
+    // 再确保 declare global 后面有一个空行
+    globalDts = globalDts.replace(/(declare global \{[\s\S]*?\n\})(\n*)(export \{\};)/g, '$1\n\n$3');
 
     // 规范 import 块：移除 import 之间的空行，但保留与 declare global 之间的一个空行
     // globalDts = globalDts.replace(/(import type [^\n]+;\n)\n+(?=import type )/g, '$1');
-    // 写入 global.d.ts 并格式化；若遇到“文件内容较新”冲突，formatFile 内部会自动回退并重试
-    await fileManager.atomicWriteFile(globalDtsPath, globalDts);
-    await fileManager.formatFile(globalDtsPath);
+    // 写入 global.d.ts 并格式化；使用重试机制处理"文件内容较新"冲突
+    await this.writeGlobalDtsWithRetry(globalDtsPath, globalDts, fileManager);
 
     return fullPath;
+  }
+
+  /**
+   * 带重试机制的 global.d.ts 写入方法
+   * 解决连续更新时的"文件内容较新"冲突问题
+   */
+  private async writeGlobalDtsWithRetry(
+    globalDtsPath: string, 
+    content: string, 
+    fileManager: FileManager,
+    maxRetries: number = 3
+  ): Promise<void> {
+    let retryCount = 0;
+    
+    while (retryCount < maxRetries) {
+      try {
+        // 1. 检查文件是否存在，如果存在则关闭可能打开的文件
+        const fs = require('fs');
+        if (fs.existsSync(globalDtsPath)) {
+          await this.closeFileIfOpen(globalDtsPath);
+        }
+        
+        // 2. 等待一小段时间，避免时间戳冲突
+        if (retryCount > 0) {
+          await new Promise(resolve => setTimeout(resolve, 100 * retryCount));
+        }
+        
+        // 3. 重新读取文件内容，确保获取最新状态
+        let currentContent = '';
+        try {
+          currentContent = await fs.promises.readFile(globalDtsPath, 'utf8');
+        } catch {
+          // 文件不存在，直接写入
+        }
+        
+        // 4. 如果文件内容已变化，重新构建内容
+        if (currentContent && currentContent !== content) {
+          this.log(`⚠️ 检测到 global.d.ts 内容变化，重新构建...`);
+          // 这里可以添加重新构建逻辑，或者直接使用新内容
+        }
+        
+        // 5. 使用新的格式化流程：写入 -> ESLint -> Prettier
+        await fileManager.formatAndWriteFile(globalDtsPath, content);
+        
+        // 成功，退出重试循环
+        break;
+        
+      } catch (error) {
+        retryCount++;
+        const errorMsg = error instanceof Error ? error.message : '未知错误';
+        
+        if (retryCount >= maxRetries) {
+          this.log(`❌ global.d.ts 写入失败，已重试 ${maxRetries} 次: ${errorMsg}`);
+          throw error;
+        } else {
+          this.log(`⚠️ global.d.ts 写入失败，第 ${retryCount} 次重试: ${errorMsg}`);
+        }
+      }
+    }
+  }
+
+  /**
+   * 关闭可能打开的文件，避免文件状态冲突
+   */
+  private async closeFileIfOpen(filePath: string): Promise<void> {
+    try {
+      // 首先检查文件是否存在
+      const fs = require('fs');
+      if (!fs.existsSync(filePath)) {
+        // 文件不存在，直接返回
+        return;
+      }
+
+      // 检查文件是否已经在 VSCode 中打开
+      const openDocuments = vscode.workspace.textDocuments;
+      const existingDocument = openDocuments.find(doc => doc.uri.fsPath === filePath);
+      
+      if (existingDocument) {
+        // 如果文档是脏的，先保存
+        if (existingDocument.isDirty) {
+          try {
+            await existingDocument.save();
+            console.log(`✅ 保存文档: ${path.basename(filePath)}`);
+          } catch (saveError) {
+            console.warn(`⚠️ 保存文档失败 (${path.basename(filePath)}): ${saveError}`);
+          }
+        }
+        
+        // 尝试关闭特定的文档
+        try {
+          // 使用命令关闭文档
+          await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+          console.log(`✅ 关闭文档: ${path.basename(filePath)}`);
+        } catch (closeError) {
+          // 如果关闭失败，记录错误但不抛出异常
+          console.warn(`⚠️ 关闭文档失败 (${path.basename(filePath)}): ${closeError}`);
+        }
+      } else {
+        console.log(`ℹ️ 文档未打开: ${path.basename(filePath)}`);
+      }
+      
+    } catch (error) {
+      // 忽略关闭文件的错误，但记录详细信息用于调试
+      const errorMsg = error instanceof Error ? error.message : '未知错误';
+      console.warn(`⚠️ 关闭文件失败 (${path.basename(filePath)}): ${errorMsg}`);
+    }
   }
 
   /**
