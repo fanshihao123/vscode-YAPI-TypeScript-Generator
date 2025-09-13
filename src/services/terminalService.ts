@@ -534,8 +534,8 @@ export class TerminalService {
           this.log(`❌ 菜单 "${menuFile.menuName}" 文件处理失败: ${error instanceof Error ? error.message : '未知错误'}`);
         }
       }
-      // 生成或更新主索引文件
-      const mainIndexPath = await this.updateMainIndexFile(config.outputPath, menuFiles);
+      // 生成全局类型声明文件
+      await this.updateGlobalDtsFile(config.outputPath, menuFiles);
 
       // 确保所有缓冲区写盘（处理极端情况下的未保存/预览误判）
       await vscode.workspace.saveAll(true);
@@ -704,79 +704,27 @@ export class TerminalService {
   }
 
   /**
-   * 生成或更新主索引文件
+   * 生成或更新全局类型声明文件
    */
-  private async updateMainIndexFile(outputPath: string, menuFiles: Array<{
+  private async updateGlobalDtsFile(outputPath: string, menuFiles: Array<{
     menuName: string;
     fileName: string;
     filePath: string;
     interfaces: any[];
     apis: any[];
-  }>): Promise<string> {
+  }>): Promise<void> {
     const fileManager = new FileManager();
-    
-    const mainIndexPath = `${outputPath}/index.ts`;
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
-    const fullPath = path.resolve(workspaceRoot, mainIndexPath);
-
-    // 增量更新主索引文件：
-    // - 读取既有内容，若存在则仅替换“生成时间”行；
-    // - 对每个新菜单，若缺少对应的 export 语句则追加；
-    // - 保留历史内容不覆盖，确保可重复执行且幂等。
-    const headerTitle = '// 自动生成的 YAPI TypeScript 接口主索引文件';
-    const nowLine = `// 生成时间: ${new Date().toLocaleString()}`;
-    const timeRegex = /^\/\/\s*生成时间:.*$/m;
-    let content = '';
-    try {
-      content = await fs.promises.readFile(fullPath, 'utf8');
-      // 更新时间
-      if (timeRegex.test(content)) {
-        content = content.replace(timeRegex, nowLine);
-      } else if (content.startsWith(headerTitle)) {
-        content = content.replace(headerTitle, `${headerTitle}\n${nowLine}`);
-      } else {
-        content = `${headerTitle}\n${nowLine}\n// 请不要手动修改此文件，每次生成都会覆盖！！！\n\n${content}`;
-      }
-    } catch {
-      content = `${headerTitle}\n${nowLine}\n// 请不要手动修改此文件，每次生成都会覆盖！！！\n\n`;
-    }
-
-    // 为每个菜单进行“缺失即追加”的导出语句拼接
-    // 这段代码的作用是：遍历所有 menuFiles（每个 menuFile 代表一个菜单模块），
-    // 检查主索引文件内容 content 是否已经包含了该菜单的导出语句（export * from ...）。
-    // 如果没有，则为该菜单追加一段注释和导出语句，确保每个菜单的 index.ts 都被主索引文件导出。
-    // 这样可以实现增量追加，避免重复导出，保证主索引文件始终包含所有菜单模块的导出。
-
-    // 例如，假设 menuFiles 有两个菜单：
-    // menuFiles = [
-    //   { menuName: '用户管理', fileName: 'user', ... },
-    //   { menuName: '订单管理', fileName: 'order', ... }
-    // ]
-    // 那么最终 content 会追加如下内容（如果之前没有）：
-    // // 用户管理 模块
-    // export * from './user/index';
-    // // 订单管理 模块
-    // export * from './order/index';
-    for (const menuFile of menuFiles) {
-      const block = `// ${menuFile.menuName} 模块\nexport * from './${menuFile.fileName}/index';\n`;
-      const signature = `export * from './${menuFile.fileName}/index';`;
-      if (!content.includes(signature)) {
-        content += `${block}`;
-      }
-    }
-
-    // 写入主索引并格式化；若遇到“文件内容较新”冲突，formatFile 内部会自动回退并重试
-    await fileManager.atomicWriteFile(fullPath, content);
-    await fileManager.formatFile(fullPath);
 
     // 生成全局类型声明：使用 declare namespace API，仅映射 interfaces.ts 的类型
     const globalDtsPath = path.resolve(workspaceRoot, `${outputPath}/global.d.ts`);
     // 增量更新全局类型声明：
     // - 仅生成类型声明（无运行时对象）；
     // - 汇总每个菜单的 interfaces.ts 到 API.<PascalName> 命名空间；
-    // - 读取旧内容，补齐/替换“生成时间”；增量追加缺失的 import 与命名空间映射。
+    // - 读取旧内容，补齐/替换"生成时间"；增量追加缺失的 import 与命名空间映射。
     const globalHeaderTitle = '// 自动生成的全局类型声明文件';
     const globalNowLine = `// 生成时间: ${new Date().toLocaleString()}`;
+    const timeRegex = /^\/\/\s*生成时间:.*$/m;
     let globalDts = '';
 
     // 将菜单名称转换为 PascalCase：
@@ -1012,8 +960,6 @@ export class TerminalService {
     // globalDts = globalDts.replace(/(import type [^\n]+;\n)\n+(?=import type )/g, '$1');
     // 写入 global.d.ts 并格式化；使用重试机制处理"文件内容较新"冲突
     await this.writeGlobalDtsWithRetry(globalDtsPath, globalDts, fileManager);
-
-    return fullPath;
   }
 
   /**

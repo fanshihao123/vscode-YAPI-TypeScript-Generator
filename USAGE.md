@@ -151,7 +151,6 @@ src/api/
 │   ├── interfaces.ts
 │   ├── apis.ts
 │   └── index.ts
-├── index.ts                    # 根索引文件
 └── global.d.ts                 # 全局类型声明
 ```
 
@@ -233,20 +232,6 @@ export * from './interfaces';
 export * from './apis';
 ```
 
-#### `index.ts`（根级）
-
-```typescript
-// 自动生成的 YAPI TypeScript 接口主索引文件
-// 生成时间: 2024-01-15 10:30:00
-// 请不要手动修改此文件，每次生成都会覆盖！！！
-
-// 公共分类 模块
-export * from './gonggongfenlei/index';
-
-// 新版本小店列表 模块
-export * from './xinbanbenxiaodianliebiao/index';
-```
-
 #### `global.d.ts`
 
 ```typescript
@@ -323,9 +308,8 @@ function processApiModule(module: keyof typeof API) {
 
 扩展支持增量更新，不会覆盖已有内容：
 
-1. **主索引文件**：只追加新的菜单模块
-2. **全局类型**：只添加新的命名空间映射
-3. **时间戳更新**：每次生成都会更新文件头的时间戳
+1. **全局类型**：只添加新的命名空间映射
+2. **时间戳更新**：每次生成都会更新文件头的时间戳
 
 ### 原子写入
 

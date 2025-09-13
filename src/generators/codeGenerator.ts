@@ -98,7 +98,8 @@ export class CodeGenerator {
 
   /**
    * 生成接口名称
-   * 与API方法名保持一致，但改为PascalCase格式
+   * 规则：去掉HTTP方法前缀，转换为PascalCase格式
+   * 例如：getPartnerRankShareUrl -> PartnerRankShareUrl
    */
   private generateInterfaceName(apiInterface: YAPIInterface): string {
     let apiName = this.generateAPIName(apiInterface);
@@ -116,45 +117,31 @@ export class CodeGenerator {
 
   /**
    * 生成 API 函数名称
-   * 规则：按照接口路径命名保证唯一，使用 _id 字段，只保留最后1个路径段，直接使用路径生成驼峰命名
-   * 例如：GET /api/shop/V3/shopPopList -> getShopPopList${id}
+   * 规则：取接口请求类型拼接URL最后一段，去掉拼接id的逻辑，保持原有驼峰格式
+   * 例如：GET /api/AffiliatePartner/getPartnerRankShareUrl -> getPartnerRankShareUrl
+   * 例如：GET /api/shop/sShopList -> getSShopList
    */
   private generateAPIName(apiInterface: YAPIInterface): string {
     const path = apiInterface.path;
-    const id = apiInterface._id || '';
     // 拆分路径，去除空字符串
-    let paths = path.split('/').filter(Boolean);
+    const paths = path.split('/').filter(Boolean);
 
-    // 只保留最后1个路径段（如有），否则全部
-    if (paths.length > 1) {
-      paths = paths.slice(paths.length - 1);
-    }
+    // 只取最后1个路径段
+    const lastPath = paths.length > 0 ? paths[paths.length - 1] : '';
 
-    // 处理路径段，全部转为驼峰（首字母大写，特殊字符去除）
-    const pathParts = paths
-      .map(part => {
-        return part
-          .replace(/[^a-zA-Z0-9]/g, '') // 移除特殊字符
-          .replace(/^[0-9]/, '') // 移除开头的数字
-          .replace(/-([a-z])/g, (_, letter) => letter.toUpperCase()) // 处理连字符
-          .replace(/_([a-z])/g, (_, letter) => letter.toUpperCase()) // 处理下划线
-          .replace(/^./, str => str.toUpperCase()); // 首字母大写
-      })
-      .filter(part => part.length > 0);
+    // 处理路径段，转为驼峰命名（保持原有驼峰格式）
+    const processedPath = lastPath
+    .replace(/[^a-zA-Z0-9]/g, '') // 移除特殊字符
+    .replace(/^[0-9]/, '') // 移除开头的数字
+    .replace(/-([a-z])/g, (_, letter) => letter.toUpperCase()) // 处理连字符
+    .replace(/_([a-z])/g, (_, letter) => letter.toUpperCase()) // 处理下划线
+    .replace(/^./, str => str.toUpperCase()); // 首字母大写
 
     // 方法前缀
-    let methodName = this.config.methodNamePrefix[apiInterface.method.toUpperCase()].toLocaleLowerCase() || 'get';
+    const methodName = this.config.methodNamePrefix[apiInterface.method.toUpperCase()].toLocaleLowerCase() || 'get';
 
-    // 拼接路径段
-    let name = methodName;
-    for (const part of pathParts) {
-      name += part;
-    }
-
-    // 拼接唯一id
-    name += id ? `${id}` : '';
-
-    return name;
+    // 拼接方法前缀和路径
+    return methodName + processedPath;
   }
 
   /**

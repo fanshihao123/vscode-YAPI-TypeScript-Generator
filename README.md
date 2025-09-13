@@ -7,10 +7,10 @@
 - 🔗 **连接 YAPI**：通过账号登录，拉取分组/项目/接口信息
 - 🧭 **交互式终端**：命令面板一键启动"YAPI 终端工具"，逐步选择分组 → 项目 → 菜单
 - 🗂️ **模块化生成**：按"菜单"拆分目录，分别输出 `interfaces.ts`、`apis.ts`、`index.ts`
-- ♻️ **增量更新**：根 `index.ts` 和 `global.d.ts` 会按菜单模块"去重追加"，并在每次更新后刷新时间戳
+- ♻️ **增量更新**：`global.d.ts` 会按菜单模块"去重追加"，并在每次更新后刷新时间戳
 - 🌐 **全局类型**：自动生成 `global.d.ts`，提供全局 `API` 命名空间，支持 `API.模块名.*` 类型访问
 - 🧾 **命名规范**：
-  - 函数名：`<methodPrefix><PathParts>`（如：`getV3ShopPopList`）
+  - 函数名：`<methodPrefix><LastPathSegment>`（如：`getPartnerRankShareUrl`）
   - 接口名：`PascalCase`，不带 `Interface` 后缀；请求/响应后缀分别为 `Params`、`Response`
   - 菜单目录：中文转拼音，英文保留原位，清理非法字符
 - 🧹 **注释清洗**：服务端返回的 HTML 描述自动清洗，统一输出多行块注释
@@ -22,7 +22,6 @@
 - 🔒 **原子写入**：使用临时文件+重命名机制，避免并发写入导致的内容丢失
 - 🎯 **Prettier 增强**：自动检测并加载 `prettier-plugin-organize-imports` 等插件，确保 import 排序
 - 🔧 **ESLint 集成**：自动执行 ESLint 修复，确保代码质量
-- 🔇 **静默操作**：生成过程中不会打开或关闭文件，不干扰用户当前工作
 - 🛡️ **文件状态管理**：完善的冲突处理和错误恢复机制
 
 ## 系统要求
@@ -96,7 +95,6 @@ src/api/
 │   ├── interfaces.ts
 │   ├── apis.ts
 │   └── index.ts
-├── index.ts                    # 根索引，汇总全部菜单导出
 └── global.d.ts                 # 全局类型声明
 ```
 
@@ -145,16 +143,18 @@ const data: GetCategoryListResponse = await getCategoryList(params);
 ### 函数命名规则
 
 - HTTP 方法前缀：`get`、`post`、`put`、`delete`、`patch`
-- 路径片段：驼峰化处理
-- 版本号：保留如 `V3`、`v1` 等
-- 示例：`GET /api/shop/V3/shopPopList` → `getV3ShopPopList`
+- URL 最后一段：直接使用，转为驼峰命名（首字母小写）
+- 去掉拼接 id 的逻辑
+- 示例：`GET /api/AffiliatePartner/getPartnerRankShareUrl` → `getPartnerRankShareUrl`
+- 示例：`GET /api/shop/sShopList` → `getSShopList`
 
 ### 接口命名规则
 
 - 基于函数名去掉方法前缀后 `PascalCase`
 - 请求参数：`XxxParams`
 - 响应数据：`XxxResponse`
-- 示例：`getV3ShopPopList` → `V3ShopPopListParams`、`V3ShopPopListResponse`
+- 示例：`getPartnerRankShareUrl` → `PartnerRankShareUrlParams`、`PartnerRankShareUrlResponse`
+- 示例：`getSShopList` → `SShopListParams`、`SShopListResponse`
 
 ### 类型推断规则
 
@@ -164,7 +164,7 @@ const data: GetCategoryListResponse = await getCategoryList(params);
 
 ### 文件更新策略
 
-- **增量更新**：根 `index.ts` 和 `global.d.ts` 采用"去重追加"策略
+- **增量更新**：`global.d.ts` 采用"去重追加"策略
 - **时间戳刷新**：每次生成都会更新文件头的"生成时间"
 - **原子写入**：使用临时文件+重命名，避免并发写入导致的内容丢失
 
@@ -271,12 +271,12 @@ module.exports = {
 }
 ```
 
-### Q: 根 `index.ts` 会不会被覆盖？
+### Q: 每个菜单目录下的 `index.ts` 会不会被覆盖？
 
-**A:** 不会。根索引采用"去重追加"策略：
-- 只追加新的菜单模块
-- 保留历史内容
-- 每次更新刷新时间戳
+**A:** 会。每个菜单目录下的 `index.ts` 是模块导出文件，每次生成都会重新生成：
+- 导出该菜单下的所有接口类型和 API 函数
+- 每次生成都会更新文件头的"生成时间"
+- 这是正常的模块化设计
 
 ### Q: 全局类型不生效？
 
