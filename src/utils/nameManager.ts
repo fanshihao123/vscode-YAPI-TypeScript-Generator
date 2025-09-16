@@ -91,12 +91,14 @@ export class NameManager {
 
   /**
    * 中文转拼音实现，参考 terminalService.ts 中的实现
-   * 使用 pinyin 库进行转换
+   * 使用 pinyin 库进行转换，保持字符间分隔以便后续格式转换
    */
   private convertChineseToPinyin(text: string): string {
-    return text.replace(/[\u4e00-\u9fa5]/g, (match) => 
-      pinyin(match, { style: 'NORMAL' }).map(item => item.join('')).join('')
-    );
+    return text.replace(/[\u4e00-\u9fa5]/g, (match) => {
+      const pinyinResult = pinyin(match, { style: 'NORMAL' });
+      // 将每个字符的拼音用空格分隔，这样后续转换时能识别单字边界
+      return ' ' + pinyinResult.map(item => item.join('')).join(' ') + ' ';
+    }).replace(/\s+/g, ' ').trim(); // 清理多余空格
   }
 
   /**
