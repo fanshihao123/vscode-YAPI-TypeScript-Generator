@@ -131,10 +131,10 @@ export class CodeGenerator {
 
     // 处理路径段，转为驼峰命名（保持原有驼峰格式）
     const processedPath = lastPath
-    .replace(/[^a-zA-Z0-9]/g, '') // 移除特殊字符
-    .replace(/^[0-9]/, '') // 移除开头的数字
     .replace(/-([a-z])/g, (_, letter) => letter.toUpperCase()) // 处理连字符
     .replace(/_([a-z])/g, (_, letter) => letter.toUpperCase()) // 处理下划线
+    .replace(/[^a-zA-Z0-9]/g, '') // 移除特殊字符
+    .replace(/^[0-9]/, '') // 移除开头的数字
     .replace(/^./, str => str.toUpperCase()); // 首字母大写
 
     // 方法前缀
