@@ -455,26 +455,6 @@ ${this.generateFromJsonSchema(schema, indent)}${indent}}`;
       }
 
       content += `${indent}[key: string]: any;\n`;
-
-      // Fallback：按示例数据推断
-      // if (Array.isArray(obj)) {
-      //   if (obj.length > 0) {
-      //     const itemType = this.getTypeFromValue(obj[0]);
-      //     content += `${indent}items: ${itemType}[];\n`;
-      //   } else {
-      //     content += `${indent}items: any[];\n`;
-      //   }
-      //   return content;
-      // }
-      
-      // 处理对象示例
-      // for (const [key, value] of Object.entries(obj)) {
-      //   const type = this.getTypeFromValue(value);
-      //   const safeKey = this.ensureValidPropertyName(key);
-      //   const comment = this.generatePropertyComment(key, value);
-        
-      //   content += `${indent}${safeKey}: ${type};${comment}\n`;
-      // }
     } catch (error) {
       console.warn('生成对象接口失败:', error);
       content += `${indent}// 类型推断失败，使用 any\n`;
@@ -483,107 +463,6 @@ ${this.generateFromJsonSchema(schema, indent)}${indent}}`;
 
     return content;
   }
-
-  /**
-   * 生成属性注释
-   */
-  // private generatePropertyComment(key: string, value: any): string {
-  //   if (!this.config.generateComments) {
-  //     return '';
-  //   }
-    
-  //   let comment = '';
-    
-  //   // 添加类型信息
-  //   if (typeof value === 'string') {
-  //     if (this.isEmail(value)) {
-  //       comment += ` // 邮箱地址`;
-  //     } else if (this.isUrl(value)) {
-  //       comment += ` // URL地址`;
-  //     } else if (this.isDateString(value)) {
-  //       comment += ` // 日期字符串`;
-  //     } else if (value.length > 50) {
-  //       comment += ` // 长文本`;
-  //     } else {
-  //       comment += ` // ${value}`;
-  //     }
-  //   } else if (typeof value === 'number') {
-  //     if (Number.isInteger(value)) {
-  //       comment += ` // 整数`;
-  //     } else {
-  //       comment += ` // 浮点数`;
-  //     }
-  //   } else if (typeof value === 'boolean') {
-  //     comment += ` // 布尔值`;
-  //   } else if (Array.isArray(value)) {
-  //     comment += ` // 数组，长度: ${value.length}`;
-  //   } else if (value === null) {
-  //     comment += ` // null值`;
-  //   } else if (value === undefined) {
-  //     comment += ` // undefined值`;
-  //   }
-    
-  //   return comment;
-  // }
-
-  /**
-   * 从值获取类型
-   * 增强的类型推断逻辑
-   */
-  // private getTypeFromValue(value: any): string {
-  //   if (value === null) return 'null';
-  //   if (value === undefined) return 'undefined';
-    
-  //   const type = typeof value;
-    
-  //   switch (type) {
-  //     case 'string':
-  //       // 检查是否是特殊格式的字符串
-  //       if (this.isEmail(value)) return 'string'; // 可以扩展为 Email 类型
-  //       if (this.isUrl(value)) return 'string'; // 可以扩展为 URL 类型
-  //       if (this.isDateString(value)) return 'string'; // 可以扩展为 Date 类型
-  //       if (this.isUuid(value)) return 'string'; // UUID格式
-  //       if (this.isGuid(value)) return 'string'; // GUID格式
-  //       return 'string';
-  //     case 'number':
-  //       // 检查是否是整数
-  //       if (Number.isInteger(value)) return 'number';
-  //       return 'number';
-  //     case 'boolean':
-  //       return 'boolean';
-  //     case 'object':
-  //       if (Array.isArray(value)) {
-  //         if (value.length > 0) {
-  //           const itemType = this.getTypeFromValue(value[0]);
-  //           return `${itemType}[]`;
-  //         }
-  //         return 'any[]';
-  //       }
-  //       // 检查是否是空对象
-  //       if (Object.keys(value).length === 0) {
-  //         return 'Record<string, never>';
-  //       }
-  //       return 'any';
-  //     default:
-  //       return 'any';
-  //   }
-  // }
-
-  /**
-   * 检查是否是UUID格式
-   */
-  // private isUuid(value: string): boolean {
-  //   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  //   return uuidRegex.test(value);
-  // }
-
-  /**
-   * 检查是否是GUID格式
-   */
-  // private isGuid(value: string): boolean {
-  //   const guidRegex = /^\{[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\}$/i;
-  //   return guidRegex.test(value);
-  // }
 
   /**
    * 确保属性名有效
@@ -602,33 +481,6 @@ ${this.generateFromJsonSchema(schema, indent)}${indent}}`;
     return name;
   }
 
-  /**
-   * 检查是否是邮箱格式
-   */
-  // private isEmail(value: string): boolean {
-  //   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  //   return emailRegex.test(value);
-  // }
-
-  /**
-   * 检查是否是URL格式
-   */
-  // private isUrl(value: string): boolean {
-  //   try {
-  //     new URL(value);
-  //     return true;
-  //   } catch {
-  //     return false;
-  //   }
-  // }
-
-  /**
-   * 检查是否是日期字符串
-   */
-  // private isDateString(value: string): boolean {
-  //   const date = new Date(value);
-  //   return !isNaN(date.getTime());
-  // }
 
   /**
    * 生成 API 内容
@@ -652,20 +504,6 @@ ${this.generateFromJsonSchema(schema, indent)}${indent}}`;
     }
 
     content += this.generateAPIRequestFunction(apiInterface, apiName, requestInterfaceName, responseInterfaceName);
-
-    // 根据输出格式生成不同的API内容
-    // switch (this.config.outputFormat) {
-    //   case 'axios':
-    //     content += this.generateAxiosAPI(apiInterface, apiName, requestInterfaceName, responseInterfaceName);
-    //     break;
-    //   case 'request':
-    //     content += this.generateRequestAPI(apiInterface, apiName, requestInterfaceName, responseInterfaceName);
-    //     break;
-    //   case 'fetch':
-    //   default:
-    //     content += this.generateFetchAPI(apiInterface, apiName, requestInterfaceName, responseInterfaceName);
-    //     break;
-    // }
 
     return content;
   }
@@ -698,140 +536,6 @@ ${this.generateFromJsonSchema(schema, indent)}${indent}}`;
     return `export const ${functionName} = async (params: ${requestInterfaceName}, config?: ${method === 'get' ? getConfigTypeName(importFunctionNames[0]) : getConfigTypeName(importFunctionNames[1])}) => {
   return ${method === 'get' ? importFunctionNames[0] : importFunctionNames[1]}<${responseInterfaceName}>('${path}', params, config);
 };`;
-  }
+  } 
 
-  /**
-   * 生成 Fetch API
-   */
-  // private generateFetchAPI(apiInterface: YAPIInterface, apiName: string, requestInterfaceName: string, responseInterfaceName: string): string {
-  //   let content = `export const ${apiName} = async (params: ${requestInterfaceName}): Promise<${responseInterfaceName}> => {\n`;
-    
-  //   // 构建请求URL
-  //   content += `  // 构建请求URL\n`;
-  //   content += `  let url = \`${this.config.baseURL || ''}${apiInterface.path}\`;\n`;
-    
-  //   // 处理GET请求的查询参数
-  //   if (apiInterface.method.toUpperCase() === 'GET') {
-  //     content += `  \n`;
-  //     content += `  // GET 请求参数处理\n`;
-  //     content += `  const queryParams = new URLSearchParams();\n`;
-      
-  //     if (apiInterface.req_query && apiInterface.req_query.length > 0) {
-  //       content += `  \n`;
-  //       content += `  // 添加查询参数\n`;
-  //       for (const param of apiInterface.req_query) {
-  //         const isRequired = param.required === '1';
-  //         if (isRequired) {
-  //           content += `  if (params.${param.name} !== undefined) {\n`;
-  //           content += `    queryParams.append('${param.name}', String(params.${param.name}));\n`;
-  //           content += `  }\n`;
-  //         } else {
-  //           content += `  if (params.${param.name} !== undefined) {\n`;
-  //           content += `    queryParams.append('${param.name}', String(params.${param.name}));\n`;
-  //           content += `  }\n`;
-  //         }
-  //       }
-  //     }
-      
-  //     content += `  \n`;
-  //     content += `  // 构建完整URL\n`;
-  //     content += `  const queryString = queryParams.toString();\n`;
-  //     content += `  if (queryString) {\n`;
-  //     content += `    url += '?' + queryString;\n`;
-  //     content += `  }\n`;
-  //   }
-    
-  //   content += `  \n`;
-  //   content += `  // 构建请求配置\n`;
-  //   content += `  const requestConfig: RequestInit = {\n`;
-  //   content += `    method: '${apiInterface.method.toUpperCase()}',\n`;
-  //   content += `    headers: {\n`;
-  //   content += `      'Content-Type': 'application/json',\n`;
-  //   content += `      'Accept': 'application/json',\n`;
-  //   content += `    },\n`;
-    
-  //   // 处理非GET请求的请求体
-  //   if (apiInterface.method.toUpperCase() !== 'GET') {
-  //     content += `    body: JSON.stringify(params),\n`;
-  //   }
-    
-  //   content += `  };\n`;
-  //   content += `  \n`;
-  //   content += `  try {\n`;
-  //   content += `    const response = await fetch(url, requestConfig);\n`;
-  //   content += `    \n`;
-  //   content += `    if (!response.ok) {\n`;
-  //   content += `      throw new Error(\`HTTP error! status: \${response.status}, message: \${response.statusText}\`);\n`;
-  //   content += `    }\n`;
-  //   content += `    \n`;
-  //   content += `    const data = await response.json();\n`;
-  //   content += `    return data as ${responseInterfaceName};\n`;
-  //   content += `  } catch (error) {\n`;
-  //   content += `    console.error('API请求失败:', error);\n`;
-  //   content += `    throw error;\n`;
-  //   content += `  }\n`;
-  //   content += `};\n`;
-
-  //   return content;
-  // }
-
-  /**
-   * 生成 Axios API
-   */
-  // private generateAxiosAPI(apiInterface: YAPIInterface, apiName: string, requestInterfaceName: string, responseInterfaceName: string): string {
-  //   let content = `export const ${apiName} = async (params: ${requestInterfaceName}): Promise<${responseInterfaceName}> => {\n`;
-    
-  //   content += `  try {\n`;
-  //   content += `    const response = await axios.${apiInterface.method.toLowerCase()}(\n`;
-  //   content += `      \`${this.config.baseURL || ''}${apiInterface.path}\`,\n`;
-    
-  //   if (apiInterface.method.toUpperCase() === 'GET') {
-  //     content += `      { params }\n`;
-  //   } else {
-  //     content += `      params\n`;
-  //   }
-    
-  //   content += `    );\n`;
-  //   content += `    return response.data;\n`;
-  //   content += `  } catch (error) {\n`;
-  //   content += `    console.error('API请求失败:', error);\n`;
-  //   content += `    throw error;\n`;
-  //   content += `  }\n`;
-  //   content += `};\n`;
-
-  //   return content;
-  // }
-
-  /**
-   * 生成 Request API
-   */
-  // private generateRequestAPI(apiInterface: YAPIInterface, apiName: string, requestInterfaceName: string, responseInterfaceName: string): string {
-  //   let content = `export const ${apiName} = async (params: ${requestInterfaceName}): Promise<${responseInterfaceName}> => {\n`;
-    
-  //   content += `  try {\n`;
-  //   content += `    const response = await request({\n`;
-  //   content += `      url: \`${this.config.baseURL || ''}${apiInterface.path}\`,\n`;
-  //   content += `      method: '${apiInterface.method.toUpperCase()}',\n`;
-  //   content += `      headers: {\n`;
-  //   content += `        'Content-Type': 'application/json',\n`;
-  //   content += `      },\n`;
-    
-  //   if (apiInterface.method.toUpperCase() === 'GET') {
-  //     content += `      qs: params,\n`;
-  //   } else {
-  //     content += `      body: params,\n`;
-  //   }
-    
-  //   content += `      json: true,\n`;
-  //   content += `      timeout: ${this.config.timeout},\n`;
-  //   content += `    });\n`;
-  //   content += `    return response;\n`;
-  //   content += `  } catch (error) {\n`;
-  //   content += `    console.error('API请求失败:', error);\n`;
-  //   content += `    throw error;\n`;
-  //   content += `  }\n`;
-  //   content += `};\n`;
-
-  //   return content;
-  // }
 }

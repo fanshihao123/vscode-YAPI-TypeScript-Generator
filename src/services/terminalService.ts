@@ -76,24 +76,6 @@ export class TerminalService {
     if (!validation.isValid) {
       this.log('❌ 配置不完整:');
       validation.errors.forEach(error => this.log(`   - ${error}`));
-      
-      // const result = await vscode.window.showErrorMessage(
-      //   '配置不完整，是否现在配置？',
-      //   '配置设置',
-      //   '取消'
-      // );
-      
-      // if (result === '配置设置') {
-      //   await vscode.commands.executeCommand('ytt.configureYAPI');
-      //   // 重新验证配置
-      //   const newConfig = ConfigManager.getConfig();
-      //   const newValidation = ConfigManager.validateConfig(newConfig);
-      //   if (!newValidation.isValid) {
-      //     throw new Error('配置仍然不完整');
-      //   }
-      // } else {
-      //   throw new Error('配置不完整');
-      // }
     }
 
     this.log('✅ 配置验证通过');
@@ -197,14 +179,6 @@ export class TerminalService {
     try {
       const menuList = await this.yapiService.getProjectDetailMenuList(projectId);
       this.log(`📋 找到 ${menuList.length} 个接口`);
-      
-      // menuList.forEach((menu, index) => {
-      //   this.log(`   ${index + 1}. [${menu.list[0].method}] ${menu.name}`);
-      //   this.log(`      路径: ${menu.list[0].path}`);
-      //   if (menu.desc) {
-      //     this.log(`      描述: ${menu.desc}`);
-      //   }
-      // });
 
 
       let selectedMenus: YAPIMenuList[] = [];
@@ -449,18 +423,6 @@ export class TerminalService {
       await fileManager.ensureDirectoryExists(config.outputPath);
       this.log(`📁 输出目录: ${config.outputPath}`);
 
-      // 检查现有文件，避免覆盖
-      // const existingFiles = await this.checkExistingFiles(config.outputPath, menuFiles);
-      
-      // if (existingFiles.length > 0) {
-      //   this.log(`⚠️  发现 ${existingFiles.length} 个现有文件，将进行增量更新`);
-      //   const shouldContinue = await this.confirmIncrementalUpdate(existingFiles);
-      //   if (!shouldContinue) {
-      //     this.log('❌ 用户取消操作');
-      //     return;
-      //   }
-      // }
-
       // 为每个菜单创建独立的文件
       const createdFiles: string[] = [];
       const updatedFiles: string[] = [];
@@ -545,38 +507,6 @@ export class TerminalService {
         this.log(`   ${index + 1}. [${menu.method}] ${menu.path}`);
       });
       this.log(`✅ 所有代码处理完成! 🚀🚀🚀生成 ${interfaceList[0]?.length} 个接口!`);
-      //   this.log(`   ${index + 1}. [${menu.list[0].method}] ${menu.name}`);
-      //   this.log(`      路径: ${menu.list[0].path}`);
-      //   if (menu.desc) {
-      //     this.log(`      描述: ${menu.desc}`);
-      //   }
-      // });
-      // this.log(`   📄 新创建文件: ${createdFiles.length} 个`);
-      // this.log(`   📄 更新文件: ${updatedFiles.length} 个`);
-      // this.log(`   📄 主索引文件: ${fileManager.getRelativePath(mainIndexPath)}`);
-
-      // 询问是否打开生成的文件
-      // const result = await vscode.window.showInformationMessage(
-      //   `成功处理 ${interfaceList.length} 个菜单的 TypeScript 文件!`,
-      //   '打开主索引文件',
-      //   '打开所有新文件',
-      //   '在文件资源管理器中显示'
-      // );
-
-      // 根据用户选择执行操作
-      // switch (result) {
-      //   case '打开主索引文件':
-      //     await fileManager.openFile(mainIndexPath);
-      //     break;
-      //   case '打开所有新文件':
-      //     for (const filePath of [...createdFiles, mainIndexPath]) {
-      //       await fileManager.openFile(filePath);
-      //     }
-      //     break;
-      //   case '在文件资源管理器中显示':
-      //     await vscode.commands.executeCommand('revealInExplorer', mainIndexPath);
-      //     break;
-      // }
 
     } catch (error) {
       this.log(`❌ 代码生成失败: ${error instanceof Error ? error.message : '未知错误'}`);
@@ -594,56 +524,6 @@ export class TerminalService {
     });
   }
 
- 
-
-
-  /**
-   * 检查现有文件，避免覆盖
-   */
-  // private async checkExistingFiles(outputPath: string, menuFiles: Array<{
-  //   menuName: string;
-  //   fileName: string;
-  //   filePath: string;
-  //   interfaces: any[];
-  //   apis: any[];
-  // }>): Promise<string[]> {
-  //   const fileManager = new FileManager();
-  //   const existingFiles: string[] = [];
-
-  //   for (const menuFile of menuFiles) {
-  //     const interfacesPath = `${outputPath}/${menuFile.fileName}/interfaces.ts`;
-  //     const apisPath = `${outputPath}/${menuFile.fileName}/apis.ts`;
-  //     const indexPath = `${outputPath}/${menuFile.fileName}/index.ts`;
-
-  //     if (await this.fileExists(interfacesPath)) {
-  //       existingFiles.push(interfacesPath);
-  //     }
-  //     if (await this.fileExists(apisPath)) {
-  //       existingFiles.push(apisPath);
-  //     }
-  //     if (await this.fileExists(indexPath)) {
-  //       existingFiles.push(indexPath);
-  //     }
-  //   }
-  //   return existingFiles;
-  // }
-
-  /**
-   * 确认增量更新
-   */
-  // private async confirmIncrementalUpdate(existingFiles: string[]): Promise<boolean> {
-  //   const fileManager = new FileManager();
-  //   let message = `发现 ${existingFiles.length} 个现有文件，将进行增量更新。\n\n`;
-  //   existingFiles.forEach(file => message += `- ${fileManager.getRelativePath(file)}\n`);
-  //   message += `\n是否继续？`;
-
-  //   const result = await vscode.window.showWarningMessage(
-  //     message,
-  //     '继续',
-  //     '取消'
-  //   );
-  //   return result === '继续';
-  // }
 
   /**
    * 文件是否存在

@@ -229,13 +229,6 @@ export class YAPIService {
   async getAllInterfaces(): Promise<YAPIGroup[]> {
     try {
       const groups = await this.getGroups();
-      // console.log('groups',groups);
-      // const allInterfaces: YAPIInterface[] = [];
-
-      // for (const category of categories) {
-      //   const interfaces = await this.getInterfaces(category._id);
-      //   allInterfaces.push(...interfaces);
-      // }
 
       return groups;
     } catch (error) {
