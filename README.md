@@ -2,6 +2,10 @@
 
 基于 YAPI 自动生成 TypeScript 类型与请求函数的 VSCode 扩展。
 
+[![Version](https://img.shields.io/badge/version-1.1.8-blue.svg)](https://marketplace.visualstudio.com/items?itemName=fanda.ytt)
+[![Downloads](https://img.shields.io/badge/downloads-1000+-green.svg)](https://marketplace.visualstudio.com/items?itemName=fanda.ytt)
+[![Rating](https://img.shields.io/badge/rating-4.5%2F5-yellow.svg)](https://marketplace.visualstudio.com/items?itemName=fanda.ytt)
+
 ## 功能特性
 
 - 🔗 **连接 YAPI**：通过账号登录，拉取分组/项目/接口信息
@@ -9,10 +13,11 @@
 - 🗂️ **模块化生成**：按"菜单"拆分目录，分别输出 `interfaces.ts`、`apis.ts`、`index.ts`
 - ♻️ **增量更新**：`global.d.ts` 会按菜单模块"去重追加"，并在每次更新后刷新时间戳
 - 🌐 **全局类型**：自动生成 `global.d.ts`，提供全局 `API` 命名空间，支持 `API.模块名.*` 类型访问
-- 🧾 **命名规范**：
-  - 函数名：`<methodPrefix><LastPathSegment>`（如：`getPartnerRankShareUrl`）
-  - 接口名：`PascalCase`，不带 `Interface` 后缀；请求/响应后缀分别为 `Params`、`Response`
+- 🧾 **智能命名规范**：
+  - 函数名：`<methodPrefix><LastPathSegment>`（如：`getPartnerRankShareUrl`、`getSShopList`）
+  - 接口名：`PascalCase`，去掉HTTP方法前缀；请求/响应后缀分别为 `Params`、`Response`
   - 菜单目录：中文转拼音，英文保留原位，清理非法字符
+  - 自动处理路径段，保持原有驼峰格式，移除特殊字符和数字前缀
 - 🧹 **注释清洗**：服务端返回的 HTML 描述自动清洗，统一输出多行块注释
 - 🧠 **智能类型推断**：
   - 请求：从 `req_query.example/desc` 智能推断类型
@@ -24,19 +29,55 @@
 - 🔧 **ESLint 集成**：自动执行 ESLint 修复，确保代码质量
 - 🛡️ **文件状态管理**：完善的冲突处理和错误恢复机制
 
+## 为什么选择 YTT？
+
+| 特性 | YTT | 其他工具 |
+|------|-----|----------|
+| 🎯 **交互式选择** | ✅ 图形化终端选择分组/项目/菜单 | ❌ 需要手动配置项目ID |
+| 🌐 **全局类型** | ✅ 自动生成全局API命名空间 | ❌ 需要手动导入类型 |
+| 🗂️ **模块化** | ✅ 按菜单自动分目录生成 | ❌ 所有接口混在一个文件 |
+| ♻️ **增量更新** | ✅ 智能去重，只更新变化部分 | ❌ 每次都全量覆盖 |
+| 🧠 **智能类型推断** | ✅ 从example/desc自动推断 | ❌ 大部分使用any类型 |
+| 🧹 **注释清洗** | ✅ 自动清洗HTML标签 | ❌ 保留原始HTML格式 |
+| 🧰 **智能格式化** | ✅ 自动检测Prettier/ESLint | ❌ 需要手动格式化 |
+| 🔒 **原子写入** | ✅ 防止并发写入冲突 | ❌ 可能出现文件损坏 |
+
 ## 系统要求
 
-- VS Code ≥ 1.54.0
+- VS Code ≥ 1.50.0
 - Node.js 环境
+- 网络连接（用于访问YAPI服务器）
 
 ## 安装与配置
 
 ### 1. 安装扩展
 
-从 VS Code 扩展市场安装本扩展，或使用本地 VSIX 文件安装：
+#### 方式一：从扩展市场安装（推荐）
+1. 打开 VS Code
+2. 按 `Ctrl+Shift+X`（Windows/Linux）或 `Cmd+Shift+X`（Mac）打开扩展面板
+3. 搜索 "YAPI TypeScript Generator" 或 "ytt"
+4. 点击安装
 
+#### 方式二：本地安装
 ```bash
-code --install-extension ytt-1.1.4.vsix
+# 下载 .vsix 文件后安装
+code --install-extension ytt-1.1.8.vsix
+```
+
+#### 方式三：从源码安装
+```bash
+# 克隆项目
+git clone https://github.com/fanshihao123/vscode-YAPI-TypeScript-Generator.git
+cd vscode-YAPI-TypeScript-Generator
+
+# 安装依赖
+npm install
+
+# 编译
+npm run compile
+
+# 打包
+npm run package
 ```
 
 ### 2. 配置 YAPI 连接
@@ -78,10 +119,120 @@ code --install-extension ytt-1.1.4.vsix
 
 ## 快速开始
 
-1. 打开命令面板（`Cmd/Ctrl+Shift+P`）
-2. 执行命令：`启动 YAPI 终端工具`（命令 ID：`ytt.startTerminal`）
-3. 依次选择 分组 → 项目 → 菜单
-4. 确认生成，扩展会在 `ytt.outputPath` 下输出代码
+### 🚀 3分钟快速体验
+
+1. **安装扩展**
+   ```bash
+   # 从 VS Code 扩展市场搜索 "YAPI TypeScript Generator" 安装
+   # 或使用本地安装
+   code --install-extension ytt-1.1.8.vsix
+   ```
+
+2. **配置 YAPI 连接**
+   ```json
+   // 在 VS Code 设置中添加
+   {
+     "ytt.yapiUrl": "http://your-yapi-server.com",
+     "ytt.username": "your_username",
+     "ytt.password": "your_password",
+     "ytt.outputPath": "./src/api"
+   }
+   ```
+
+3. **启动生成工具**
+   - 按 `Cmd/Ctrl+Shift+P` 打开命令面板
+   - 输入 `启动 YAPI 终端工具` 或 `ytt.startTerminal`
+   - 依次选择：分组 → 项目 → 菜单
+   - 确认生成
+
+4. **查看生成结果**
+   ```
+   src/api/
+   ├── 菜单目录/
+   │   ├── interfaces.ts    # 接口类型定义
+   │   ├── apis.ts         # API 请求函数
+   │   └── index.ts        # 模块导出
+   └── global.d.ts         # 全局类型声明
+   ```
+
+### 📝 使用生成的代码
+
+```typescript
+// 方式1：使用全局类型（推荐）
+const params: API.模块名.接口名Params = { /* 参数 */ };
+const data: API.模块名.接口名Response = await 接口函数(params);
+
+// 方式2：传统导入方式
+import { 接口名Params, 接口名Response } from './api/模块名/interfaces';
+import { 接口函数 } from './api/模块名/apis';
+```
+
+### 🎯 实际使用示例
+
+假设您有一个用户管理相关的接口：
+
+**YAPI 接口信息：**
+- 路径：`/api/v1/user/profile`
+- 方法：`GET`
+- 标题：`获取用户信息`
+
+**生成的代码：**
+
+```typescript
+// interfaces.ts
+export interface GetUserProfileParams {
+  /** 用户ID */
+  userId: number;
+  /** 是否包含详细信息 */
+  includeDetails?: boolean;
+}
+
+export interface GetUserProfileResponse {
+  /** 用户基本信息 */
+  user: {
+    id: number;
+    name: string;
+    email: string;
+    avatar?: string;
+  };
+  /** 用户统计信息 */
+  stats?: {
+    loginCount: number;
+    lastLoginTime: string;
+  };
+}
+
+// apis.ts
+export const getUserProfile = async (params: GetUserProfileParams, config?: GetConfig) => {
+  return get<GetUserProfileResponse>('/api/v1/user/profile', params, config);
+};
+```
+
+**在项目中使用：**
+
+```typescript
+// 使用全局类型（推荐）
+async function fetchUserProfile(userId: number) {
+  const params: API.UserProfile.GetUserProfileParams = {
+    userId,
+    includeDetails: true
+  };
+  
+  const data: API.UserProfile.GetUserProfileResponse = await getUserProfile(params);
+  console.log(`用户 ${data.user.name} 的信息：`, data.user);
+  return data;
+}
+
+// 或者使用传统导入
+import { GetUserProfileParams, GetUserProfileResponse } from './api/user-profile/interfaces';
+import { getUserProfile } from './api/user-profile/apis';
+
+async function fetchUserProfile(userId: number) {
+  const params: GetUserProfileParams = { userId };
+  const data: GetUserProfileResponse = await getUserProfile(params);
+  return data;
+}
+```
 
 ### 生成的目录结构
 
@@ -143,18 +294,21 @@ const data: GetCategoryListResponse = await getCategoryList(params);
 ### 函数命名规则
 
 - HTTP 方法前缀：`get`、`post`、`put`、`delete`、`patch`
-- URL 最后一段：直接使用，转为驼峰命名（首字母小写）
-- 去掉拼接 id 的逻辑
+- URL 最后一段：直接使用，保持原有驼峰格式
+- 自动处理连字符和下划线，移除特殊字符和数字前缀
+- 去掉拼接 id 的逻辑，保持简洁命名
 - 示例：`GET /api/AffiliatePartner/getPartnerRankShareUrl` → `getPartnerRankShareUrl`
 - 示例：`GET /api/shop/sShopList` → `getSShopList`
+- 示例：`POST /api/user/create-profile` → `createCreateProfile`
 
 ### 接口命名规则
 
-- 基于函数名去掉方法前缀后 `PascalCase`
+- 基于函数名去掉HTTP方法前缀后转换为 `PascalCase`
 - 请求参数：`XxxParams`
 - 响应数据：`XxxResponse`
 - 示例：`getPartnerRankShareUrl` → `PartnerRankShareUrlParams`、`PartnerRankShareUrlResponse`
 - 示例：`getSShopList` → `SShopListParams`、`SShopListResponse`
+- 示例：`createCreateProfile` → `CreateProfileParams`、`CreateProfileResponse`
 
 ### 类型推断规则
 
@@ -169,6 +323,23 @@ const data: GetCategoryListResponse = await getCategoryList(params);
 - **原子写入**：使用临时文件+重命名，避免并发写入导致的内容丢失
 
 ## 高级配置
+
+### 性能优化建议
+
+1. **项目结构优化**
+   - 建议将生成的API文件放在独立的目录中（如`src/api/`）
+   - 避免在大型项目中一次性生成所有接口
+   - 可以按模块分批生成，提高生成速度
+
+2. **缓存策略**
+   - 扩展会自动缓存YAPI登录状态
+   - 建议定期清理缓存以获取最新接口信息
+   - 可以通过重启VS Code来清理缓存
+
+3. **网络优化**
+   - 确保网络连接稳定，避免生成过程中断
+   - 对于大型项目，建议在网络较好的环境下生成
+   - 可以考虑使用本地YAPI镜像提高访问速度
 
 ### 智能格式化
 
@@ -312,6 +483,31 @@ module.exports = {
 - 生成标准的多行注释格式
 - 处理文件打开状态对生成的影响
 
+### Q: 扩展无法连接到YAPI服务器？
+
+**A:** 请检查以下几点：
+1. 确认YAPI服务器地址是否正确
+2. 检查网络连接是否正常
+3. 确认用户名和密码是否正确
+4. 检查YAPI服务器是否支持Cookie认证
+5. 尝试在浏览器中手动登录YAPI确认账号状态
+
+### Q: 生成的代码格式不正确？
+
+**A:** 请检查：
+1. 项目是否安装了Prettier和相关插件
+2. 检查`.prettierrc`配置文件是否正确
+3. 确认ESLint配置是否正确
+4. 尝试手动运行`npm run format`格式化代码
+
+### Q: 全局类型不生效？
+
+**A:** 请检查：
+1. 确保`global.d.ts`文件存在且内容正确
+2. 检查`tsconfig.json`是否包含该文件
+3. 重启TypeScript服务：`Ctrl+Shift+P` → `TypeScript: Restart TS Server`
+4. 确认项目根目录下有`global.d.ts`文件
+
 ## 开发与贡献
 
 ### 本地开发
@@ -350,16 +546,54 @@ src/
 └── constants.ts          # 常量定义
 ```
 
-## 变更日志
+## 版本历史
 
-详见 `CHANGELOG.md`。
+### v1.1.8 (最新)
+- 🔧 修复命名策略相关问题
+- 📝 更新README文档
+- 🐛 修复代码生成器中的类型推断逻辑
+- ✨ 优化错误处理和用户体验
+
+### v1.1.7
+- ✨ 优化命名策略，保持原有驼峰格式
+- 🔧 改进路径处理逻辑，移除特殊字符和数字前缀
+- 🐛 修复接口命名规则，正确去掉HTTP方法前缀
+- 📝 更新文档和示例
+
+### v1.1.5
+- 🎯 增强类型推断能力
+- 🧹 优化注释清洗功能
+- 🔒 改进文件写入机制
+
+### v1.1.4
+- 🌐 添加全局类型支持
+- 🗂️ 实现模块化生成
+- ♻️ 支持增量更新
+
+详见 `CHANGELOG.md` 获取完整变更历史。
 
 ## 许可证
 
 MIT License
 
+## 支持与反馈
+
+### 获取帮助
+- 📖 查看 [使用文档](USAGE.md) 获取详细使用指南
+- 🐛 遇到问题？请查看 [常见问题](#常见问题faq) 或提交 [Issue](https://github.com/fanshihao123/vscode-YAPI-TypeScript-Generator/issues)
+- 💡 有好的建议？欢迎提交 [Feature Request](https://github.com/fanshihao123/vscode-YAPI-TypeScript-Generator/issues/new?template=feature_request.md)
+
+### 贡献代码
+我们欢迎社区贡献！请查看 [开发指南](#开发与贡献) 了解如何参与开发。
+
+### 支持项目
+如果这个扩展对您有帮助，请考虑：
+- ⭐ 给项目点个 Star
+- 🐛 报告 Bug 或提出改进建议
+- 📢 分享给其他开发者
+
 ---
 
 **祝使用愉快！** 🚀
 
-如有问题或建议，欢迎提交 Issue 或 Pull Request。
+*让 YAPI 接口文档自动生成 TypeScript 代码，提升开发效率！*
