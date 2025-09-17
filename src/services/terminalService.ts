@@ -7,6 +7,7 @@ import { FileManager } from '../utils/fileManager';
 import { ConfigManager } from '../utils/configManager';
 import { YAPIGroup, YAPIProject, YAPIMenuList, YAPIInterface } from '../types/yapi';
 import pinyin from 'pinyin';
+import { NameManager } from '../utils/nameManager';
 
 export class TerminalService {
   private outputChannel: vscode.OutputChannel;
@@ -695,7 +696,7 @@ export class TerminalService {
     // 辅助：安全转义别名用于正则
     const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     for (const m of menuFiles) {
-      const importAlias = `__API__${m.fileName}`;
+      const importAlias = `__API__${new NameManager(m.fileName).toSnakeCase()}`;
       const importLine = `import * as ${importAlias} from './${m.fileName}/interfaces';`;
       const nsName = toPascalNamespace(m.menuName, m.fileName);
       const nsLine = `    export import ${nsName} = ${importAlias};`;
