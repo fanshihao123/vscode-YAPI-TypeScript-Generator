@@ -696,7 +696,7 @@ export class TerminalService {
     // 辅助：安全转义别名用于正则
     const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     for (const m of menuFiles) {
-      const importAlias = `__API__${new NameManager(m.fileName).toSnakeCase()}`;
+      const importAlias = `__API__${new NameManager(m.menuName).toSnakeCase()}`;
       const importLine = `import * as ${importAlias} from './${m.fileName}/interfaces';`;
       const nsName = toPascalNamespace(m.menuName, m.fileName);
       const nsLine = `    export import ${nsName} = ${importAlias};`;
