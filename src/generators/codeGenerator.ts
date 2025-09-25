@@ -295,7 +295,8 @@ export class CodeGenerator {
     // console.log('apiInterface.req_query', apiInterface.req_query);
     // 入参，post方法合并路径参数和body
     let params = [...(apiInterface.req_query || [])];
-    if (apiInterface.method === "POST") {
+
+    if (apiInterface.method === "POST" && apiInterface.req_body_type === "form") {
       params = [...params, ...(apiInterface.req_body_form || [])].reduceRight(
         (curRet, curItem) => {
           if (curRet.findIndex((item) => item.name === curItem.name) === -1) {
@@ -305,6 +306,13 @@ export class CodeGenerator {
         },
         [] as YAPIParam[]
       );
+    }
+
+    const hasJsonBodyParams = apiInterface.method === "POST" && apiInterface.req_body_type === "json"
+    if(hasJsonBodyParams){
+      const obj = JSON.parse(apiInterface.req_body_other);
+      // 覆盖查询参数中的字段
+      params = params.filter((item) =>  !Object.keys(obj.properties).includes(item.name));
     }
     
     for (const param of params) {
@@ -320,10 +328,10 @@ export class CodeGenerator {
       content += `  ${paramName}${isRequired ? "" : "?"}: ${type};\n`;
     }
 
-    // 请求体（YAPI 当前定义未提供结构，保底提供 body）
-    // 如未来扩展可从其它字段推断
-    // content += `  // 请求体\n`;
-    // content += `  body?: any;\n`;
+    // 追加类型为json的body参数
+    if(hasJsonBodyParams){
+      content += this.generateObjectInterface(JSON.parse(apiInterface.req_body_other), '  ');
+    }
 
     content += `}\n\n`;
 
@@ -336,7 +344,7 @@ export class CodeGenerator {
     if (apiInterface.res_body && apiInterface.res_body_type === 'json') {
       try {
         const responseObj = JSON.parse(apiInterface.res_body);
-        content += this.generateObjectInterface(responseObj, '  ');
+        content += this.generateObjectInterface(responseObj?.properties?.data, '  ');
       } catch (error) {
         content += `  // 响应数据 (JSON 解析失败)\n`;
         content += `  data?: any;\n`;
@@ -454,13 +462,11 @@ ${this.generateFromJsonSchema(schema, indent)}${indent}}`;
     try {
       // 优先按 JSON Schema 解析
       if (this.isJsonSchema(obj)) {
-        // 只解析data数据
-        const data = obj.properties.data;
         const schema = {
-          type: data.type || (data.properties ? 'object' : data.type),
-          properties: data.properties,
-          items: data.items,
-          required: data.required
+          type: obj.type || (obj.properties ? 'object' : obj.type),
+          properties: obj.properties,
+          items: obj.items,
+          required: obj.required
         };
         return this.generateFromJsonSchema(schema, indent);
       }
