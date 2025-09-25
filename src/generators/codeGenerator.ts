@@ -293,21 +293,32 @@ export class CodeGenerator {
     let content = headerComment || '';
     content += `export interface ${requestInterfaceName} {\n`;
     // console.log('apiInterface.req_query', apiInterface.req_query);
-    // 查询参数（根据最新类型定义，仅保留 req_query） 
-    if (apiInterface.req_query && apiInterface.req_query.length > 0) {
-      for (const param of apiInterface.req_query) {
-        const isRequired = param.required === '1';
-       const type = this.getRequestParamType(param);
-       const pDesc = this.sanitizeComment(param.desc);
+    // 入参，post方法合并路径参数和body
+    let params = [...(apiInterface.req_query || [])];
+    if (apiInterface.method === "POST") {
+      params = [...params, ...(apiInterface.req_body_form || [])].reduceRight(
+        (curRet, curItem) => {
+          if (curRet.findIndex((item) => item.name === curItem.name) === -1) {
+            return [curItem, ...curRet];
+          }
+          return curRet;
+        },
+        [] as YAPIParam[]
+      );
+    }
+    
+    for (const param of params) {
+      const isRequired = param.required === "1";
+      const type = this.getRequestParamType(param);
+      const pDesc = this.sanitizeComment(param.desc);
 
-       const paramName = this.sanitizePropertyKey(param.name);
+      const paramName = this.sanitizePropertyKey(param.name);
 
-       if (pDesc) {
-         content += `  /** ${pDesc} */\n`;
-       }
-       content += `  ${paramName}${isRequired ? '' : '?'}: ${type};\n`;
-     }
-   }
+      if (pDesc) {
+        content += `  /** ${pDesc} */\n`;
+      }
+      content += `  ${paramName}${isRequired ? "" : "?"}: ${type};\n`;
+    }
 
     // 请求体（YAPI 当前定义未提供结构，保底提供 body）
     // 如未来扩展可从其它字段推断
