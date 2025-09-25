@@ -44,7 +44,7 @@ export interface YAPIInterface {
   req_params: [];
   req_query: YAPIParam[];
   req_headers: [];
-  req_body_form: [];
+  req_body_form: YAPIParam[];
   req_body_type: string;
   res_body: string;
   res_body_type: string;
