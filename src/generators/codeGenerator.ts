@@ -319,21 +319,30 @@ export class CodeGenerator {
     // 添加响应头注释
     const reseaderComment = this.toBlockComment(this.sanitizeComment(apiInterface.title) + ' 响应参数');
     content += reseaderComment || '';
-
     // 响应接口
-    content += `export interface ${responseInterfaceName} {\n`;
+    let copyJson;
     if (apiInterface.res_body && apiInterface.res_body_type === 'json') {
       try {
         const responseObj = JSON.parse(apiInterface.res_body);
+        copyJson = responseObj;
+        const type =  responseObj.properties.data.type;
+
+        // 处理data为数组情况
+        if(type === 'array'){
+          content += `export type ${responseInterfaceName} = {\n`;
+        }else{
+          content += `export interface ${responseInterfaceName} {\n`;
+        }
         content += this.generateObjectInterface(responseObj, '  ');
       } catch (error) {
         content += `  // 响应数据 (JSON 解析失败)\n`;
         content += `  data?: any;\n`;
       }
     } else {
+      content += `export interface ${responseInterfaceName} {\n`;
       content += `  data?: any;\n`;
     }
-    content += `}\n`;
+    content += `}${copyJson?.properties?.data?.type === 'array' ? '[]':''}\n`;
 
     return content;
   }
@@ -451,6 +460,11 @@ ${this.generateFromJsonSchema(schema, indent)}${indent}}`;
           items: data.items,
           required: data.required
         };
+
+        if( schema.type === 'array' && schema.items) {
+          schema.properties = schema.items.properties;
+          schema.required = schema.items.required;
+        }
         return this.generateFromJsonSchema(schema, indent);
       }
 
